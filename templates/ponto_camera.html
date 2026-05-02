@@ -1,19 +1,19 @@
-{% extends 'base.html' %}
-{% block title %}Câmera de Ponto · MultiMax{% endblock %}
+﻿{% extends 'base.html' %}
+{% block title %}C├ómera de Ponto ┬À MultiMax{% endblock %}
 
 {% block content %}
 <div class="cam-page">
 
-    <!-- Cabeçalho -->
+    <!-- Cabe├ºalho -->
     <div class="cam-header">
         <a class="btn btn-ghost cam-back" href="{{ url_for('ponto') }}">&#8592; Voltar</a>
         <h2 class="cam-title">&#128247; Captura de Ponto</h2>
-        <p class="cam-subtitle" id="cam-subtitle">Iniciando câmera…</p>
+        <p class="cam-subtitle" id="cam-subtitle">Iniciando c├ómeraÔÇª</p>
     </div>
 
-    <!-- ══════════════════════════════════════════════════
-         MODO A: câmera ao vivo (HTTPS / localhost)
-         ══════════════════════════════════════════════════ -->
+    <!-- ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+         MODO A: c├ómera ao vivo (HTTPS / localhost)
+         ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ -->
     <div id="mode-live" style="display:none; width:100%; max-width:480px;">
 
         <div class="cam-viewport" id="cam-viewport">
@@ -36,9 +36,9 @@
         </div>
     </div>
 
-    <!-- ══════════════════════════════════════════════════
-         MODO B: fallback nativo (HTTP sem câmera API)
-         ══════════════════════════════════════════════════ -->
+    <!-- ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+         MODO B: fallback nativo (HTTP sem c├ómera API)
+         ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ -->
     <div id="mode-native" style="display:none; width:100%; max-width:420px;">
 
         <div class="native-card" id="native-card">
@@ -46,14 +46,14 @@
             <p class="native-title">Fotografe o comprovante</p>
             <p class="native-desc">
                 Enquadre o cupom inteiro na foto.<br>
-                O OCR será processado automaticamente.
+                O OCR ser├í processado automaticamente.
             </p>
-            <!-- form com name="foto" — submit direto, sem DataTransfer (iOS Safari) -->
+            <!-- form com name="foto" ÔÇö submit direto, sem DataTransfer (iOS Safari) -->
             <form id="native-form" method="post"
                   action="{{ url_for('ponto_upload') }}"
                   enctype="multipart/form-data">
                 <label class="btn cam-btn-primary native-btn" for="native-file-input">
-                    &#128247; Abrir câmera
+                    &#128247; Abrir c├ómera
                 </label>
                 <input id="native-file-input" type="file" name="foto"
                        accept="image/*" capture="environment"
@@ -61,7 +61,7 @@
             </form>
             <div class="native-spinner" id="native-spinner" style="display:none">
                 <div class="spinner"></div>
-                <span>Analisando…</span>
+                <span>AnalisandoÔÇª</span>
             </div>
         </div>
 
@@ -90,7 +90,7 @@
 .cam-title { font-size: 1.3rem; font-weight: 700; margin: .1rem 0; }
 #cam-subtitle { color: var(--muted); font-size: .9rem; margin: 0; }
 
-/* ── Viewport ── */
+/* ÔöÇÔöÇ Viewport ÔöÇÔöÇ */
 .cam-viewport {
     position: relative;
     width: 100%;
@@ -102,7 +102,7 @@
 }
 #cam-video { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-/* ── Guia ── */
+/* ÔöÇÔöÇ Guia ÔöÇÔöÇ */
 .cam-guide { position: absolute; inset: 8%; pointer-events: none; }
 .cam-guide-corner {
     position: absolute; width: 26px; height: 26px;
@@ -115,7 +115,7 @@
 .cam-guide-corner.br { bottom:0; right:0; border-width:0 3px 3px 0; border-radius:0 0 4px 0; }
 .cam-guide-corner.ok { border-color: #4caf50; }
 
-/* ── Status ── */
+/* ÔöÇÔöÇ Status ÔöÇÔöÇ */
 .cam-status-overlay {
     position: absolute; bottom: 56px; left: 8px; right: 8px;
     background: rgba(0,0,0,.62); border-radius: 10px;
@@ -131,7 +131,7 @@
 .cam-status-label { font-weight: 600; width: 2.8rem; }
 .cam-status-val { flex:1; font-family: monospace; font-size: .78rem; opacity: .85; }
 
-/* ── Flash / countdown / msg ── */
+/* ÔöÇÔöÇ Flash / countdown / msg ÔöÇÔöÇ */
 .cam-flash {
     position: absolute; inset: 0; background: white; opacity: 0;
     pointer-events: none; transition: opacity .05s;
@@ -155,7 +155,7 @@
     pointer-events: none;
 }
 
-/* ── Controles ── */
+/* ÔöÇÔöÇ Controles ÔöÇÔöÇ */
 .cam-controls { width: 100%; display: flex; justify-content: center; }
 .cam-btn-primary {
     background: var(--teal); color: #fff; border: none;
@@ -166,7 +166,7 @@
 .cam-btn-primary:hover { background: var(--teal-dark); }
 .cam-btn-primary:active { transform: scale(.97); }
 
-/* ── Modo nativo ── */
+/* ÔöÇÔöÇ Modo nativo ÔöÇÔöÇ */
 .native-card {
     background: var(--surface); border-radius: var(--radius-lg);
     box-shadow: var(--shadow); padding: 2.5rem 1.5rem;
@@ -195,7 +195,7 @@
     const modeLive   = document.getElementById('mode-live');
     const modeNative = document.getElementById('mode-native');
 
-    /* ── Detecta se câmera API está disponível ── */
+    /* ÔöÇÔöÇ Detecta se c├ómera API est├í dispon├¡vel ÔöÇÔöÇ */
     const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     const hasMediaDevices = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 
@@ -205,9 +205,9 @@
         startNativeMode();
     }
 
-    /* ══════════════════════════════════════════
-       MODO A — câmera ao vivo
-    ══════════════════════════════════════════ */
+    /* ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+       MODO A ÔÇö c├ómera ao vivo
+    ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ */
     function startLiveMode() {
         modeLive.style.display = 'block';
         subtitle.textContent = 'Enquadre o comprovante e capture';
@@ -235,16 +235,16 @@
             flash.classList.add('active');
             setTimeout(() => flash.classList.remove('active'), 80);
             btnCap.disabled = true;
-            btnCap.textContent = 'Processando…';
+            btnCap.textContent = 'ProcessandoÔÇª';
             canvas.toBlob(blob => submitBlob(blob), 'image/jpeg', 0.95);
         }
 
         btnCap.addEventListener('click', capture);
     }
 
-    /* ══════════════════════════════════════════
-       MODO B — input nativo (HTTP)
-    ══════════════════════════════════════════ */
+    /* ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+       MODO B ÔÇö input nativo (HTTP)
+    ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ */
     function startNativeMode() {
         modeNative.style.display = 'block';
         subtitle.textContent = 'Tire uma foto do comprovante';
@@ -257,18 +257,19 @@
             if (!inp.files || !inp.files[0]) return;
             card.querySelectorAll('.native-icon,.native-title,.native-desc,.native-btn').forEach(el => el.style.opacity = '.3');
             spinner.style.display = 'flex';
-            subtitle.textContent = 'Processando OCR…';
-            // submit direto do form — sem DataTransfer, funciona no iOS Safari
+            subtitle.textContent = 'Processando OCRÔÇª';
+            // submit direto do form ÔÇö sem DataTransfer, funciona no iOS Safari
             document.getElementById('native-form').submit();
         });
     }
 
-    /* ── Envio para modo live (blob de canvas → fetch + FormData) ── */
+    /* ÔöÇÔöÇ Envio para modo live (blob de canvas ÔåÆ fetch + FormData) ÔöÇÔöÇ */
     function submitBlob(blob) {
         const fd = new FormData();
         fd.append('foto', blob, 'ponto.jpg');
         fetch('{{ url_for("ponto_upload") }}', { method: 'POST', body: fd })
-            .then(r => { window.location.href = r.url; })
+            .then(r => r.text())
+            .then(html => { document.open(); document.write(html); document.close(); })
             .catch(() => { window.location.href = '{{ url_for("ponto") }}'; });
     }
 })();
