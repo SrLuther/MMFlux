@@ -1128,10 +1128,12 @@ def ponto_ocr_live():
     })
 
 
-@app.post("/ponto/upload")
+@app.route("/ponto/upload", methods=["GET", "POST"])
 @ponto_required
 def ponto_upload():
     """Recebe foto do comprovante, executa OCR e exibe pagina de confirmacao."""
+    if request.method == "GET":
+        return redirect(url_for("ponto_camera"))
     file = request.files.get("foto")
     if not file or not file.filename:
         flash("Nenhuma imagem enviada.", "warning")
