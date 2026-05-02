@@ -1,0 +1,18 @@
+{
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingTypeStubs": "none",
+        "reportMissingModuleSource": "none"
+    },
+    "mypy-type-checker.args": [
+        "--ignore-missing-imports",
+        "--check-untyped-defs"
+    ],
+    "files.associations": {
+        "VERSION": "plaintext"
+    },
+    "C_Cpp.errorSquiggles": "disabled",
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "C_Cpp.files.exclude": {
+        "**/VERSION": true
+    }
+}

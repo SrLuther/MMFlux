@@ -1,0 +1,249 @@
+{% extends 'base.html' %}
+{% block title %}Ponto Eletrônico · MultiMax{% endblock %}
+
+{% block content %}
+
+<!-- ======================================================
+     Hero / cabeçalho
+     ====================================================== -->
+<section class="hist-hero">
+    <div class="hist-hero-back">
+        <a class="btn btn-ghost" href="{{ url_for('index') }}">&#8592; Voltar</a>
+    </div>
+    <div class="hist-hero-body">
+        <p class="hero-tag">Comprovante via foto</p>
+        <h2 class="hist-name">Registro de Ponto</h2>
+        <p class="hist-role">Fotografe o comprovante impresso pelo relógio de ponto</p>
+    </div>
+    <div class="hero-metrics">
+        <div class="metric">
+            <span>Total</span>
+            <strong>{{ records|length }}</strong>
+        </div>
+        <div class="metric">
+            <span>Vinculados</span>
+            <strong>{{ records|selectattr('collaborator_id')|list|length }}</strong>
+        </div>
+        <div class="metric {% if records|rejectattr('collaborator_id')|list|length > 0 %}metric-warn{% endif %}">
+            <span>Pendentes</span>
+            <strong>{{ records|rejectattr('collaborator_id')|list|length }}</strong>
+        </div>
+    </div>
+</section>
+
+<!-- ======================================================
+     Upload
+     ====================================================== -->
+<section class="ponto-upload-section">
+    <a class="ponto-upload-btn" href="{{ url_for('ponto_camera') }}">
+        <span class="ponto-cam-icon">&#128247;</span>
+        <span class="ponto-cam-label">Fotografar comprovante</span>
+    </a>
+    <p class="ponto-upload-hint">
+        Captura automática ao identificar o comprovante
+    </p>
+</section>
+
+<!-- ======================================================
+     Pendentes (sem colaborador vinculado)
+     ====================================================== -->
+{% set pending = records|rejectattr('collaborator_id')|list %}
+{% if pending and current_user.is_authenticated %}
+<section class="ponto-section">
+    <h3 class="ponto-section-title ponto-section-warn">
+        &#9888; {{ pending|length }} registro(s) aguardando vínculo
+    </h3>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Hora</th>
+                    <th>Nome (OCR)</th>
+                    <th>CPF</th>
+                    <th>NSR</th>
+                    <th>Vincular</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in pending %}
+                <tr>
+                    <td>{{ r.punch_date.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ r.punch_time.strftime('%H:%M') }}</td>
+                    <td>{{ r.raw_name or '—' }}</td>
+                    <td class="mono">{{ r.raw_cpf }}</td>
+                    <td class="mono">{{ r.nsr }}</td>
+                    <td>
+                        <form method="post" action="{{ url_for('ponto_vincular', record_id=r.id) }}" class="inline-form">
+                            <select name="collaborator_id" required>
+                                <option value="">Selecione...</option>
+                                {% for c in collaborators %}
+                                <option value="{{ c.id }}">{{ c.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button class="btn btn-sm" type="submit">Vincular</button>
+                        </form>
+                    </td>
+                    <td>
+                        <form method="post" action="{{ url_for('ponto_delete', record_id=r.id) }}"
+                              onsubmit="return confirm('Remover este registro?')">
+                            <button class="btn btn-sm btn-danger" type="submit">&#10005;</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+<!-- ======================================================
+     Todos os registros
+     ====================================================== -->
+{% if records %}
+<section class="ponto-section">
+    <h3 class="ponto-section-title">Registros recentes</h3>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Hora</th>
+                    <th>Colaborador</th>
+                    <th>CPF</th>
+                    <th>NSR</th>
+                    <th>Status</th>
+                    {% if current_user.is_authenticated %}<th></th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in records %}
+                <tr>
+                    <td>{{ r.punch_date.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ r.punch_time.strftime('%H:%M') }}</td>
+                    <td>
+                        {% if r.collaborator %}
+                            {{ r.collaborator.name }}
+                        {% else %}
+                            <span class="text-muted">{{ r.raw_name or '—' }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="mono">{{ r.raw_cpf }}</td>
+                    <td class="mono">{{ r.nsr }}</td>
+                    <td>
+                        {% if r.collaborator_id %}
+                            <span class="badge badge-ok">Vinculado</span>
+                        {% else %}
+                            <span class="badge badge-warn">Pendente</span>
+                        {% endif %}
+                    </td>
+                    {% if current_user.is_authenticated %}
+                    <td>
+                        <form method="post" action="{{ url_for('ponto_delete', record_id=r.id) }}"
+                              onsubmit="return confirm('Remover este registro?')">
+                            <button class="btn btn-sm btn-danger" type="submit">&#10005;</button>
+                        </form>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% else %}
+<section class="ponto-section ponto-empty">
+    <p>Nenhum registro ainda. Fotografe o primeiro comprovante acima.</p>
+</section>
+{% endif %}
+
+<!-- ======================================================
+     Estilos específicos da página
+     ====================================================== -->
+<style>
+.ponto-upload-section {
+    max-width: var(--max-w);
+    margin: 1.5rem auto;
+    padding: 0 var(--page-px);
+    text-align: center;
+}
+
+.ponto-upload-btn {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .5rem;
+    padding: 1.5rem 2.5rem;
+    background: var(--teal);
+    color: #fff;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: background .15s, transform .1s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.ponto-upload-btn:active { transform: scale(.97); }
+.ponto-upload-btn:hover { background: var(--teal-dark); }
+
+.ponto-cam-icon { font-size: 2.5rem; line-height: 1; }
+.ponto-cam-label { font-size: 1.05rem; font-weight: 700; letter-spacing: .02em; }
+
+.ponto-hidden-input { display: none; }
+
+.ponto-upload-hint {
+    margin-top: .75rem;
+    font-size: .8rem;
+    color: var(--muted);
+}
+
+.ponto-section {
+    max-width: var(--max-w);
+    margin: 1.5rem auto;
+    padding: 0 var(--page-px);
+}
+
+.ponto-section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0 0 .75rem;
+    color: var(--text-soft);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.ponto-section-warn { color: #b45309; }
+
+.ponto-empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 2rem var(--page-px);
+}
+
+.inline-form { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+.inline-form select { padding: .3rem .5rem; border-radius: var(--radius-sm); border: 1px solid var(--line); font-size: .85rem; }
+
+.btn-sm { padding: .25rem .65rem; font-size: .8rem; }
+.btn-danger { background: var(--danger); color: #fff; border: none; }
+.btn-danger:hover { background: #b91c1c; }
+
+.badge {
+    display: inline-block;
+    padding: .2rem .55rem;
+    border-radius: 99px;
+    font-size: .75rem;
+    font-weight: 600;
+}
+
+.badge-ok { background: var(--ok-bg); color: var(--ok); }
+.badge-warn { background: #fef3c7; color: #92400e; }
+
+.mono { font-family: "Ubuntu Mono", monospace; font-size: .85rem; }
+.text-muted { color: var(--muted); }
+
+.metric-warn strong { color: #b45309; }
+</style>
+
+{% endblock %}

@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+if command -v python3 >/dev/null 2>&1; then
+    exec python3 scripts/validate_release.py pre-commit
+fi
+
+exec python scripts/validate_release.py pre-commit

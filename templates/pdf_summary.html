@@ -1,0 +1,398 @@
+﻿<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>MultiMax — {{ totals.month_label }}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Ubuntu+Mono:wght@400;700&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #1a3470;
+      --navy-dark: #0f2050;
+      --teal: #2dc4b4;
+      --blue-mid: #1565c0;
+      --text: #0f1c30;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --ok: #059669;
+      --danger: #dc2626;
+    }
+
+    body {
+      font-family: 'Ubuntu', sans-serif;
+      font-size: 10.5pt;
+      color: var(--text);
+      background: #fff;
+    }
+
+    /* ── CAPA / HEADER ── */
+    .cover {
+      background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 60%, var(--blue-mid) 100%);
+      color: #fff;
+      padding: 32px 40px 28px;
+      margin-bottom: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    .cover::after {
+      content: "";
+      position: absolute;
+      right: -40px; top: -40px;
+      width: 200px; height: 200px;
+      background: rgba(45,196,180,.18);
+      border-radius: 50%;
+    }
+    .cover-tag {
+      font-family: 'Ubuntu Mono', monospace;
+      font-size: 7.5pt;
+      letter-spacing: 0.14em;
+      color: var(--teal);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .cover h1 {
+      font-size: 22pt;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+    .cover-sub {
+      font-size: 9pt;
+      color: rgba(255,255,255,.65);
+      font-family: 'Ubuntu Mono', monospace;
+    }
+
+    /* ── TOTALS STRIP ── */
+    .totals {
+      display: flex;
+      gap: 10px;
+      padding: 0 40px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+    .total-card {
+      flex: 1;
+      min-width: 110px;
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--teal);
+      border-radius: 8px;
+      padding: 12px 14px;
+      text-align: center;
+    }
+    .total-card .label {
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .total-card .value {
+      font-size: 15pt;
+      font-weight: 700;
+      color: var(--navy);
+      font-family: 'Ubuntu Mono', monospace;
+    }
+
+    /* ── SECTION TITLE ── */
+    .section-title {
+      font-size: 9pt;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 40px 10px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid var(--navy);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      page-break-after: avoid;
+    }
+    .section-title::before {
+      content: "";
+      display: inline-block;
+      width: 3px;
+      height: 1em;
+      background: var(--teal);
+      border-radius: 2px;
+    }
+
+    /* ── SUMMARY TABLE ── */
+    .summary-wrap {
+      padding: 0 40px;
+      margin-bottom: 28px;
+    }
+    table.summary-grid {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+    }
+    table.summary-grid thead tr {
+      background: var(--navy);
+      color: #fff;
+    }
+    table.summary-grid thead th {
+      padding: 6px 8px;
+      text-align: left;
+      font-size: 7.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    table.summary-grid thead th:first-child {
+      border-radius: 6px 0 0 0;
+    }
+    table.summary-grid thead th:last-child {
+      border-radius: 0 6px 0 0;
+    }
+    table.summary-grid tbody tr:nth-child(odd)  { background: #f7f9fc; }
+    table.summary-grid tbody tr:nth-child(even) { background: #fff; }
+    table.summary-grid tbody td {
+      padding: 5px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+    }
+    table.summary-grid tbody tr:last-child td { border-bottom: none; }
+    .sg-name { font-weight: 700; color: var(--navy); }
+    .sg-role { font-size: 7.5pt; color: var(--muted); }
+    .sg-num  { font-family: 'Ubuntu Mono', monospace; text-align: right; }
+    .sg-pos  { font-family: 'Ubuntu Mono', monospace; text-align: right; color: var(--ok); font-weight: 700; }
+    .sg-neg  { font-family: 'Ubuntu Mono', monospace; text-align: right; color: var(--danger); font-weight: 700; }
+    .sg-net  { font-family: 'Ubuntu Mono', monospace; text-align: right; color: var(--navy); font-weight: 700; }
+
+    /* ── DETAIL SECTION ── */
+    .detail-single {
+      padding: 0 40px;
+      margin-bottom: 36px;
+    }
+    .detail-person {
+      margin-bottom: 16px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      display: block;
+    }
+    .detail-person-header {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--line);
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .detail-person-name {
+      font-weight: 700;
+      font-size: 10pt;
+      color: var(--navy);
+    }
+    .detail-person-role {
+      font-size: 8.5pt;
+      color: var(--muted);
+    }
+    table.entries {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+      table-layout: fixed;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    table.entries col.col-date  { width: 72px; }
+    table.entries col.col-hours { width: 48px; }
+    table.entries col.col-note  { width: auto; }
+    table.entries th {
+      text-align: left;
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--line);
+    }
+    table.entries thead { display: table-header-group; }
+    table.entries tbody { display: table-row-group; }
+    table.entries tr {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    table.entries td {
+      padding: 4px 6px;
+      border-bottom: 1px solid #f1f5f9;
+      font-family: 'Ubuntu Mono', monospace;
+    }
+    table.entries td.note {
+      font-family: 'Ubuntu', sans-serif;
+      color: var(--muted);
+    }
+    table.entries td.pos { color: var(--ok); font-weight: 700; }
+    table.entries td.neg { color: var(--danger); font-weight: 700; }
+    table.entries tr:last-child td { border-bottom: none; }
+
+    /* ── PAGE HEADER / FOOTER ── */
+    .page-header {
+      position: running(pageHeader);
+      display: table;
+      width: 100%;
+      padding: 7px 40px 8px;
+      border-bottom: 1px solid var(--line);
+      font-family: 'Ubuntu Mono', monospace;
+      font-size: 7.5pt;
+      color: var(--muted);
+      background: #fff;
+    }
+    .page-header-brand,
+    .page-header-page {
+      display: table-cell;
+      vertical-align: middle;
+    }
+    .page-header-brand { font-weight: 700; color: var(--navy); }
+
+    .page-footer {
+      position: running(pageFooter);
+      width: 100%;
+      padding: 6px 40px 5px;
+      border-top: 1px solid var(--line);
+      font-family: 'Ubuntu Mono', monospace;
+      font-size: 7.5pt;
+      color: var(--muted);
+      background: #fff;
+      text-align: center;
+      line-height: 1.6;
+    }
+    .page-footer-pagenum {
+      font-weight: 700;
+      color: var(--navy);
+    }
+    .page-footer-pagenum::after {
+      content: "Página " counter(page);
+    }
+
+    @page {
+      size: A4;
+      margin-top: 52px;
+      margin-bottom: 34px;
+      margin-left: 0;
+      margin-right: 0;
+      @top-center {
+        content: element(pageHeader);
+        vertical-align: middle;
+      }
+      @bottom-center {
+        content: element(pageFooter);
+        vertical-align: middle;
+      }
+    }
+    @page :first {
+      margin: 0;
+      @top-center { content: none; }
+      @bottom-center { content: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="cover">
+    <p class="cover-tag">Controle de horas · MultiMax</p>
+    <h1>{{ month_name }} {{ year }}</h1>
+    <p class="cover-sub">multimax.tec.br · gerado em {{ totals.month_label }}</p>
+  </div>
+
+  <div class="content">
+
+  <div class="page-header">
+    <span class="page-header-brand">MultiMax · Controle de Horas · {{ month_name }} {{ year }}</span>
+  </div>
+
+  <div class="page-footer">
+    <div class="page-footer-left">MultiMax · {{ totals.month_label }} · multimax.tec.br</div>
+    <div class="page-footer-pagenum"></div>
+  </div>
+
+  <div class="totals">
+    <div class="total-card">
+      <div class="label">H Bruto</div>
+      <div class="value">{{ "%.1f"|format(totals.positive|float) }}h</div>
+    </div>
+    <div class="total-card">
+      <div class="label">H Descontos</div>
+      <div class="value">{{ "%.1f"|format(totals.negative|float) }}h</div>
+    </div>
+    <div class="total-card">
+      <div class="label">H Líquido</div>
+      <div class="value">{{ "%.1f"|format(totals.net|float) }}h</div>
+    </div>
+    <div class="total-card">
+      <div class="label">Dias Completos</div>
+      <div class="value">{{ totals.days }}d</div>
+    </div>
+  </div>
+
+  {% if cards %}
+  <p class="section-title">Resumo por Colaborador</p>
+  <div class="summary-wrap">
+    <table class="summary-grid">
+      <thead>
+        <tr>
+          <th>Colaborador</th>
+          <th>Função</th>
+          <th style="text-align:right">H Bruto</th>
+          <th style="text-align:right">Descontos</th>
+          <th style="text-align:right">H Líquido</th>
+          <th style="text-align:right">Dias</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in cards %}
+        <tr>
+          <td class="sg-name">{{ c.name }}</td>
+          <td class="sg-role">{{ c.role }}</td>
+          <td class="sg-pos">{{ "%.1f"|format(c.positive|float) }}h</td>
+          <td class="sg-neg">-{{ "%.1f"|format(c.negative|float) }}h</td>
+          <td class="sg-net">{{ "%.1f"|format(c.net|float) }}h</td>
+          <td class="sg-num">{{ c.days }}d</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <p class="section-title">Lançamentos Detalhados</p>
+  <div class="detail-single">
+    {% for c in cards %}
+    {% if detail[c.name] %}
+    <div class="detail-person">
+      <div class="detail-person-header">
+        <span class="detail-person-name">{{ c.name }}</span>
+        <span class="detail-person-role">{{ c.role }}</span>
+      </div>
+      <table class="entries">
+        <colgroup><col class="col-date"><col class="col-hours"><col class="col-note"></colgroup>
+        <thead><tr><th>Data</th><th>Horas</th><th>Observação</th></tr></thead>
+        <tbody>
+          {% for e in detail[c.name] %}
+          <tr>
+            <td>{{ e.date }}</td>
+            <td class="{{ 'pos' if e.hours >= 0 else 'neg' }}">{{ "%+.1f"|format(e.hours) }}h</td>
+            <td class="note">{{ e.note if e.note else "—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% else %}
+  <p style="padding:0 40px; color:var(--muted); font-style:italic;">Nenhum lançamento registrado neste período.</p>
+  {% endif %}
+
+  </div>
+
+</body>
+</html>

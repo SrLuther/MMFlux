@@ -1,0 +1,587 @@
+{% extends 'base.html' %}
+{% block title %}Confirmar Ponto · MultiMax{% endblock %}
+
+{% block content %}
+
+<section class="hist-hero">
+    <div class="hist-hero-back">
+        <a class="btn btn-ghost" href="{{ url_for('ponto') }}">&#8592; Voltar</a>
+    </div>
+    <div class="hist-hero-body">
+        <p class="hero-tag">Confirme as informações antes de registrar</p>
+        <h2 class="hist-name">Registro de Ponto</h2>
+        {% if existing_count > 0 %}
+        <p class="pconf-pair-notice">
+            &#9888; Já existe <strong>{{ existing_count }}</strong>
+            batida{{ 's' if existing_count > 1 else '' }} não processada{{ 's' if existing_count > 1 else '' }}
+            para esse colaborador neste dia — ao confirmar, o intervalo
+            será calculado automaticamente.
+        </p>
+        {% endif %}
+    </div>
+</section>
+
+<div class="pconf-wrap">
+    <form method="post" action="{{ url_for('ponto_confirmar') }}" class="pconf-form">
+        <input type="hidden" name="filename" value="{{ filename }}">
+        <input type="hidden" name="nsr"      value="{{ data.nsr }}">
+        <input type="hidden" name="ad_key"   value="{{ data.ad_key }}">
+
+        <!-- Preview da imagem -->
+        {% if filename %}
+        <div class="pconf-img-wrap">
+            <img
+                src="{{ url_for('ponto_image', filename=filename) }}"
+                alt="Comprovante"
+                class="pconf-img"
+            >
+        </div>
+        {% endif %}
+
+        <!-- Alerta de erro OCR -->
+        {% with msgs = get_flashed_messages(with_categories=true) %}
+            {% if msgs %}
+            <section class="alerts" style="margin-bottom:1rem">
+                {% for cat, msg in msgs %}
+                <article class="alert alert-{{ cat }}">{{ msg }}</article>
+                {% endfor %}
+            </section>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Campos editáveis -->
+        <div class="pconf-grid">
+
+            <div class="pconf-field">
+                <label for="pc-name">Nome (OCR)</label>
+                <input id="pc-name" type="text" name="raw_name"
+                       value="{{ data.nome }}" required>
+            </div>
+
+            <div class="pconf-field">
+                <label for="pc-cpf">CPF</label>
+                <input id="pc-cpf" type="text" name="raw_cpf"
+                       value="{{ cpf_clean }}"
+                       placeholder="Digite os 11 dígitos" maxlength="11"
+                       pattern="\d{11}" title="Informe os 11 dígitos do CPF" required>
+            </div>
+
+            <div class="pconf-field">
+                <label for="pc-data">Data</label>
+                <input id="pc-data" type="text" name="data"
+                       value="{{ data.data }}"
+                       placeholder="DD/MM/YYYY" required>
+            </div>
+
+            <div class="pconf-field">
+                <label for="pc-hora">Hora</label>
+                <input id="pc-hora" type="text" name="hora"
+                       value="{{ data.hora }}"
+                       placeholder="HH:MM" required>
+            </div>
+
+            <div class="pconf-field">
+                <label for="pc-nsr">NSR <span class="pconf-muted">(chave única)</span></label>
+                <input id="pc-nsr" type="text" name="nsr"
+                       value="{{ data.nsr }}"
+                       placeholder="número sequencial" required>
+            </div>
+
+            <div class="pconf-field">
+                <label for="pc-nrep">NREP <span class="pconf-muted">(equipamento)</span></label>
+                <input id="pc-nrep" type="text" name="nrep"
+                       value="{{ data.nrep }}">
+            </div>
+
+            <div class="pconf-field pconf-full" id="collab-field">
+                <label>Colaborador</label>
+
+                <!-- Estado A: colaborador encontrado pelo CPF -->
+                <div id="collab-found" style="display:none">
+                    <input type="hidden" name="collaborator_id" id="collab-id-found">
+                    <div class="pconf-match pconf-collab-box">
+                        <span id="collab-found-name"></span>
+                        <span class="pconf-collab-ok">&#10003; vinculado</span>
+                    </div>
+                </div>
+
+                <!-- Estado B: CPF inválido ou ainda não digitado -->
+                <div id="collab-pending">
+                    <input type="hidden" name="collaborator_id" value="" id="collab-id-pending">
+                    <p class="pconf-nomatch" id="collab-pending-msg">
+                        Digite o CPF correto para vincular um colaborador.
+                    </p>
+                </div>
+
+                <!-- Estado C: CPF válido mas sem colaborador associado -->
+                <div id="collab-unlinked" style="display:none">
+                    <input type="hidden" name="collaborator_id" value="" id="collab-id-unlinked">
+                    <p class="pconf-warn-block">
+                        &#9888; Nenhum colaborador cadastrado com este CPF.
+                        O registro <strong>não pode ser salvo</strong> sem vínculo.
+                    </p>
+
+                    <!-- Sub-painel: associar a colaborador sem CPF -->
+                    <div id="assoc-panel" style="display:none">
+                        <p class="pconf-sub-label">Associar CPF a colaborador existente:</p>
+                        <select id="assoc-select">
+                            <option value="">— selecione —</option>
+                        </select>
+                        <button type="button" class="btn pconf-btn-assoc" id="btn-assoc">
+                            Associar
+                        </button>
+                    </div>
+
+                    <!-- Sub-painel: criar novo colaborador -->
+                    <div id="create-panel" style="margin-top:.75rem">
+                        <p class="pconf-sub-label" id="create-label">Criar novo colaborador com este CPF:</p>
+                        <div class="pconf-create-row">
+                            <input type="text" id="create-nome" placeholder="Nome completo">
+                            <button type="button" class="btn pconf-btn-create" id="btn-create">
+                                + Criar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /.pconf-grid -->
+
+        <div class="pconf-actions">
+            <a class="btn btn-ghost" href="{{ url_for('ponto') }}">Cancelar</a>
+            <!-- label dispara o input que está fora do form principal (via atributo form=) -->
+            <label class="btn btn-ghost pconf-btn-retry" for="pconf-retry-input">
+                &#128247; Nova foto
+            </label>
+            <button class="btn pconf-btn-confirm" type="submit">
+                &#10003; Confirmar e registrar
+            </button>
+        </div>
+
+    </form>
+
+    <!-- Form de reenvio fora do form principal; input associado via form="pconf-retry-form" -->
+    <form id="pconf-retry-form" method="post"
+          action="{{ url_for('ponto_upload') }}"
+          enctype="multipart/form-data">
+        <input type="file" name="foto" id="pconf-retry-input"
+               form="pconf-retry-form"
+               accept="image/*" capture="environment" style="display:none">
+    </form>
+
+    <script>
+    function cpfValido(v) {
+        v = v.replace(/\D/g, '');
+        if (v.length !== 11 || /^(\d)\1{10}$/.test(v)) return false;
+        let s = 0;
+        for (let i = 0; i < 9; i++) s += +v[i] * (10 - i);
+        let r = (s * 10) % 11; if (r === 10) r = 0;
+        if (r !== +v[9]) return false;
+        s = 0;
+        for (let i = 0; i < 10; i++) s += +v[i] * (11 - i);
+        r = (s * 10) % 11; if (r === 10) r = 0;
+        return r === +v[10];
+    }
+
+    const cpfInput   = document.getElementById('pc-cpf');
+    const nomeInput  = document.getElementById('pc-name');
+    const btnConfirm = document.querySelector('.pconf-btn-confirm');
+
+    const stFound    = document.getElementById('collab-found');
+    const stPending  = document.getElementById('collab-pending');
+    const stUnlinked = document.getElementById('collab-unlinked');
+    const pendingMsg = document.getElementById('collab-pending-msg');
+    const foundName  = document.getElementById('collab-found-name');
+    const idFound    = document.getElementById('collab-id-found');
+    const assocPanel = document.getElementById('assoc-panel');
+    const assocSel   = document.getElementById('assoc-select');
+    const createLabel= document.getElementById('create-label');
+
+    // CPF warn inline
+    const cpfWarn = document.createElement('p');
+    cpfWarn.className = 'pconf-cpf-warn';
+    cpfWarn.textContent = '\u26a0\ufe0f CPF inv\u00e1lido \u2014 verifique os d\u00edgitos';
+    cpfWarn.style.display = 'none';
+    cpfInput.parentNode.appendChild(cpfWarn);
+
+    function showState(state) {
+        stFound.style.display    = state === 'found'    ? '' : 'none';
+        stPending.style.display  = state === 'pending'  ? '' : 'none';
+        stUnlinked.style.display = state === 'unlinked' ? '' : 'none';
+        btnConfirm.disabled = state !== 'found';
+        btnConfirm.style.opacity = state === 'found' ? '' : '0.45';
+        btnConfirm.title = state === 'found' ? '' : 'Vincule um colaborador antes de confirmar';
+    }
+
+    let lastCpf = '';
+
+    async function checkCpf() {
+        const val = cpfInput.value.replace(/\D/g, '');
+        const ok  = val.length === 11 && cpfValido(val);
+
+        cpfInput.style.borderColor = val.length === 11 ? (ok ? 'var(--ok)' : 'var(--danger)') : '';
+        cpfInput.style.background  = val.length === 11 ? (ok ? 'var(--ok-bg)' : 'var(--danger-bg)') : '';
+        cpfWarn.style.display = (val.length === 11 && !ok) ? '' : 'none';
+
+        if (!ok) {
+            lastCpf = '';
+            pendingMsg.textContent = val.length === 11
+                ? 'CPF inv\u00e1lido \u2014 corrija para vincular.'
+                : 'Digite o CPF correto para vincular um colaborador.';
+            showState('pending');
+            return;
+        }
+
+        if (val === lastCpf) return;
+        lastCpf = val;
+
+        try {
+            const r = await fetch('/ponto/buscar-cpf?cpf=' + val);
+            const d = await r.json();
+
+            if (d.found) {
+                nomeInput.value  = d.nome;
+                foundName.textContent = d.nome;
+                idFound.value    = d.id;
+                showState('found');
+            } else {
+                // Preenche select de colaboradores sem CPF
+                assocSel.innerHTML = '<option value="">— selecione —</option>';
+                if (d.sem_cpf && d.sem_cpf.length > 0) {
+                    d.sem_cpf.forEach(c => {
+                        const o = document.createElement('option');
+                        o.value = c.id; o.textContent = c.nome;
+                        assocSel.appendChild(o);
+                    });
+                    assocPanel.style.display = '';
+                    createLabel.textContent = 'Ou criar novo colaborador:';
+                } else {
+                    assocPanel.style.display = 'none';
+                    createLabel.textContent = 'Criar novo colaborador com este CPF:';
+                }
+                // pré-preenche nome no input de criação com o que o OCR leu
+                document.getElementById('create-nome').value = nomeInput.value;
+                showState('unlinked');
+            }
+        } catch(_) {
+            pendingMsg.textContent = 'Erro ao consultar colaboradores.';
+            showState('pending');
+        }
+    }
+
+    cpfInput.addEventListener('input', checkCpf);
+
+    // Associar CPF a colaborador existente
+    document.getElementById('btn-assoc').addEventListener('click', async () => {
+        const collabId = assocSel.value;
+        if (!collabId) { alert('Selecione um colaborador.'); return; }
+        const cpf = cpfInput.value.replace(/\D/g, '');
+        try {
+            const r = await fetch('/ponto/associar-cpf', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({cpf, collaborator_id: collabId})
+            });
+            const d = await r.json();
+            if (!r.ok) { alert(d.error || 'Erro ao associar.'); return; }
+            nomeInput.value = d.nome;
+            foundName.textContent = d.nome;
+            idFound.value = d.id;
+            lastCpf = '';   // força refresh na próxima vez
+            showState('found');
+        } catch(_) { alert('Erro de conexão.'); }
+    });
+
+    // Criar novo colaborador
+    document.getElementById('btn-create').addEventListener('click', async () => {
+        const nome = document.getElementById('create-nome').value.trim();
+        const cpf  = cpfInput.value.replace(/\D/g, '');
+        if (!nome) { alert('Informe o nome do colaborador.'); return; }
+        try {
+            const r = await fetch('/ponto/criar-colaborador', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({nome, cpf})
+            });
+            const d = await r.json();
+            if (!r.ok) { alert(d.error || 'Erro ao criar.'); return; }
+            nomeInput.value = d.nome;
+            foundName.textContent = d.nome;
+            idFound.value = d.id;
+            lastCpf = '';
+            showState('found');
+        } catch(_) { alert('Erro de conexão.'); }
+    });
+
+    // Bloqueia submit se não houver colaborador vinculado
+    document.querySelector('.pconf-form').addEventListener('submit', e => {
+        if (btnConfirm.disabled) { e.preventDefault(); return; }
+    });
+
+    document.getElementById('pconf-retry-input').addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+            document.getElementById('pconf-retry-form').submit();
+        }
+    });
+
+    // Inicializa ao carregar
+    checkCpf();
+    </script>
+
+    {% if data.raw_text %}
+    <details class="pconf-raw">
+        <summary>&#128269; Texto bruto lido pelo OCR</summary>
+        <pre class="pconf-raw-pre">{{ data.raw_text }}</pre>
+    </details>
+    {% endif %}
+
+</div>
+
+<style>
+.pconf-wrap {
+    max-width: var(--max-w);
+    margin: 1rem auto 3rem;
+    padding: 0 var(--page-px);
+}
+
+.pconf-form {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+/* imagem preview */
+.pconf-img-wrap {
+    text-align: center;
+}
+.pconf-img {
+    max-width: 100%;
+    max-height: 320px;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    object-fit: contain;
+}
+
+/* grid de campos */
+.pconf-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .85rem 1rem;
+}
+.pconf-full { grid-column: 1 / -1; }
+
+.pconf-field {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+}
+.pconf-field label {
+    font-size: .78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-soft);
+}
+.pconf-field input,
+.pconf-field select {
+    padding: .55rem .75rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: .95rem;
+    color: var(--text);
+    background: var(--surface-2);
+    transition: border-color .15s;
+}
+.pconf-field input:focus,
+.pconf-field select:focus {
+    outline: none;
+    border-color: var(--teal);
+    background: var(--surface);
+}
+
+.pconf-muted { font-weight: 400; color: var(--muted); }
+
+.pconf-match {
+    margin: .3rem 0 0;
+    font-size: .82rem;
+    color: var(--ok);
+}
+.pconf-nomatch {
+    margin: .3rem 0 0;
+    font-size: .82rem;
+    color: var(--muted);
+}
+
+.pconf-cpf-warn {
+    margin: .3rem 0 0;
+    font-size: .82rem;
+    color: var(--danger);
+    font-weight: 600;
+}
+.pconf-collab-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: .55rem .75rem;
+    background: var(--ok-bg);
+    border: 1px solid var(--ok);
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: .95rem;
+}
+.pconf-collab-ok {
+    font-size: .8rem;
+    color: var(--ok);
+    font-weight: 700;
+}
+.pconf-warn-block {
+    margin: 0 0 .75rem;
+    padding: .6rem .85rem;
+    background: var(--danger-bg);
+    border-left: 3px solid var(--danger);
+    border-radius: var(--radius-sm);
+    font-size: .87rem;
+    color: var(--danger);
+}
+.pconf-sub-label {
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--text-soft);
+    margin: 0 0 .4rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+#assoc-panel {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+#assoc-panel select {
+    flex: 1;
+    min-width: 160px;
+    padding: .5rem .65rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: .9rem;
+    background: var(--surface-2);
+    color: var(--text);
+}
+.pconf-btn-assoc {
+    background: var(--navy);
+    color: #fff;
+    font-size: .85rem;
+    padding: .5rem 1rem;
+    white-space: nowrap;
+}
+.pconf-create-row {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+.pconf-create-row input {
+    flex: 1;
+    min-width: 160px;
+    padding: .5rem .65rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: .9rem;
+    background: var(--surface-2);
+    color: var(--text);
+}
+.pconf-create-row input:focus {
+    outline: none;
+    border-color: var(--teal);
+    background: var(--surface);
+}
+.pconf-btn-create {
+    background: var(--teal);
+    color: #fff;
+    font-size: .85rem;
+    padding: .5rem 1rem;
+    white-space: nowrap;
+}
+/* aviso par */
+.pconf-pair-notice {
+    margin: .5rem 0 0;
+    padding: .6rem .85rem;
+    background: #fef3c7;
+    border-left: 3px solid #f59e0b;
+    border-radius: var(--radius-sm);
+    font-size: .87rem;
+    color: #92400e;
+}
+
+/* botões */
+.pconf-btn-retry {
+    cursor: pointer;
+}
+/* ghost em fundo claro (fora da topbar) */
+.pconf-actions .btn-ghost {
+    background: var(--surface);
+    color: var(--navy);
+    border: 1.5px solid var(--navy);
+}
+.pconf-actions .btn-ghost:hover {
+    background: var(--surface-3);
+}
+.pconf-actions {
+    display: flex;
+    gap: .75rem;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+.pconf-btn-confirm {
+    background: var(--teal);
+    color: #fff;
+    border: none;
+    padding: .65rem 1.4rem;
+    font-size: 1rem;
+    font-weight: 700;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background .15s, transform .1s;
+}
+.pconf-btn-confirm:hover { background: var(--teal-dark); }
+.pconf-btn-confirm:active { transform: scale(.97); }
+
+@media (max-width: 420px) {
+    .pconf-grid { grid-template-columns: 1fr; }
+    .pconf-full { grid-column: 1; }
+}
+.pconf-raw {
+    margin-top: 1.25rem;
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: .75rem 1rem;
+    font-size: .85rem;
+}
+.pconf-raw summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--muted);
+    user-select: none;
+}
+.pconf-raw-pre {
+    margin-top: .75rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-family: monospace;
+    font-size: .8rem;
+    background: var(--bg);
+    border-radius: var(--radius-sm, 4px);
+    padding: .75rem;
+    max-height: 260px;
+    overflow-y: auto;
+}
+</style>
+
+{% endblock %}

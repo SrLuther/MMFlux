@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Login | MultiMax{% endblock %}
+
+{% block content %}
+<section class="login-wrap">
+    <article class="login-card">
+        <p class="hero-tag">Acesso restrito</p>
+        <h2>Entrar para atualizar dados</h2>
+        <p class="hero-text">A visualizacao do sistema permanece publica. O login habilita apenas operacoes de cadastro e edicao.</p>
+        <form method="post" action="{{ url_for('login_post') }}" class="login-form">
+            <label>Usuario</label>
+            <input type="text" name="username" required>
+            <label>Senha</label>
+            <input type="password" name="password" required>
+            <button class="btn" type="submit">Entrar</button>
+        </form>
+    </article>
+</section>
+{% endblock %}

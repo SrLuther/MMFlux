@@ -1,0 +1,8 @@
+{
+  "include": ["."],
+  "exclude": [".venv", ".db", "uploads", "**/node_modules", "**/__pycache__", "**/.*"],
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "reportMissingTypeStubs": "none",
+  "pythonVersion": "3.11"
+}

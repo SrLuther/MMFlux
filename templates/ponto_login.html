@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Acesso ao Ponto | MultiMax{% endblock %}
+
+{% block content %}
+<section class="login-wrap">
+    <article class="login-card">
+        <p class="hero-tag">&#128247; Registro de Ponto</p>
+        <h2>Identificacao do colaborador</h2>
+        <p class="hero-text">Use seu nome completo e a senha fornecida pelo administrador.</p>
+        <form method="post" action="{{ url_for('ponto_login_post') }}" class="login-form">
+            {% if request.args.get('next') %}
+            <input type="hidden" name="next" value="{{ request.args.get('next') }}">
+            {% endif %}
+            <label>Seu nome</label>
+            <input type="text" name="nome" required autocomplete="name" autofocus
+                   placeholder="Ex: Luciano Santos Costa">
+            <label>Senha</label>
+            <input type="password" name="senha" required autocomplete="current-password"
+                   placeholder="Senha fornecida pelo admin">
+            <button class="btn" type="submit">Entrar</button>
+        </form>
+        <p style="margin-top:1rem;text-align:center;font-size:.85rem;color:var(--text-muted)">
+            Administrador?
+            <a href="{{ url_for('login') }}">Acesse aqui</a>
+        </p>
+    </article>
+</section>
+{% endblock %}

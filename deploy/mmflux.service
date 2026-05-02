@@ -1,0 +1,17 @@
+[Unit]
+Description=MultiMax - Sistema de Controle de Horas
+After=network.target
+
+[Service]
+Type=simple
+User=mmflux
+WorkingDirectory=/opt/mmflux
+EnvironmentFile=/opt/mmflux/.env
+ExecStart=/opt/mmflux/.venv/bin/python app.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

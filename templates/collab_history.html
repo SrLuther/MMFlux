@@ -1,0 +1,173 @@
+{% extends 'base.html' %}
+{% block title %}{{ collab.name }} — Histórico · MultiMax{% endblock %}
+
+{% block content %}
+
+<section class="hist-hero">
+    <div class="hist-hero-back">
+        <a class="btn btn-ghost" href="{{ url_for('index') }}">&#8592; Voltar</a>
+    </div>
+    <div class="hist-hero-body">
+        <p class="hero-tag">Histórico de lançamentos</p>
+        <h2 class="hist-name">{{ collab.name }}</h2>
+        <p class="hist-role">{{ collab.role or '—' }} &nbsp;·&nbsp;
+            <span class="status {{ 'on' if collab.active else 'off' }}">
+                {{ 'Ativo' if collab.active else 'Inativo' }}
+            </span>
+        </p>
+        {% if current_user.is_authenticated %}
+        <details class="hist-collab-edit">
+            <summary>Editar colaborador</summary>
+            <form class="small-form" method="post" action="{{ url_for('update_collaborator', collaborator_id=collab.id) }}">
+                <input type="hidden" name="_from_history" value="1">
+                <input type="text" name="name" value="{{ collab.name }}" required>
+                <input type="text" name="role" value="{{ collab.role or '' }}" placeholder="Função (opcional)">
+                <input type="number" name="daily_rate" step="0.01" min="0" value="{{ collab.daily_rate if collab.daily_rate is not none else '' }}" placeholder="Diária (R$)">
+                <button class="btn" type="submit">Salvar colaborador</button>
+            </form>
+        </details>
+        {% endif %}
+    </div>
+    <div class="hero-metrics">
+        <div class="metric">
+            <span>Lançamentos</span>
+            <strong>{{ totals.count }}</strong>
+        </div>
+        <div class="metric">
+            <span>H Bruto</span>
+            <strong>{{ totals.positive|hhmm }}</strong>
+        </div>
+        <div class="metric">
+            <span>H Descontos</span>
+            <strong>{{ totals.negative|hhmm }}</strong>
+        </div>
+        <div class="metric">
+            <span>H Líquido</span>
+            <strong>{{ totals.net|hhmm }}</strong>
+        </div>
+        <div class="metric">
+            <span>Dias completos</span>
+            <strong>{{ totals.days }}</strong>
+        </div>
+        <div class="metric {% if total_value > 0 %}metric-value{% endif %}">
+            <span>Valor Est.</span>
+            <strong>{% if total_value > 0 %}R$ {{ '{:,.2f}'.format(total_value)|replace(',','X')|replace('.',',')|replace('X','.') }}{% else %}—{% endif %}</strong>
+        </div>
+        <div class="metric">
+            <span>Diária usada</span>
+            <strong>{% if collab_daily_rate > 0 %}R$ {{ '{:,.2f}'.format(collab_daily_rate)|replace(',','X')|replace('.',',')|replace('X','.') }}{% else %}—{% endif %}</strong>
+        </div>
+    </div>
+</section>
+
+{% if months %}
+<div class="hist-content">
+    {% for m in months %}
+    {% set pos = namespace(v=0) %}
+    {% set neg = namespace(v=0) %}
+    {% for e in m.entries %}
+        {% if e.hours >= 0 %}{% set pos.v = pos.v + e.hours|float %}{% endif %}
+        {% if e.hours < 0 %}{% set neg.v = neg.v + e.hours|float|abs %}{% endif %}
+    {% endfor %}
+
+    <section class="hist-month">
+        <div class="hist-month-head">
+            <h3>{{ m.label }}</h3>
+            <div class="hist-month-stats">
+                <span class="mstat pos">+{{ pos.v|hhmm }}</span>
+                {% if neg.v > 0 %}<span class="mstat neg">-{{ neg.v|hhmm }}</span>{% endif %}
+                <span class="mstat net">= {{ (pos.v - neg.v)|hhmm }}</span>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Horas</th>
+                        <th>Observação</th>
+                        {% if current_user.is_authenticated %}<th></th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in m.entries %}
+                    <tr>
+                        <td>{{ e.entry_date.strftime('%d/%m/%Y') }}</td>
+                        <td class="hours {{ 'pos' if e.hours >= 0 else 'neg' }}">
+                            {{ e.hours|hhmm }}
+                        </td>
+                        <td>
+                            {%- if e.note and e.note.startswith('Ponto:') -%}
+                                {%- set parts = e.note[6:].split('→') -%}
+                                {%- if parts|length == 2 -%}
+                                    <span class="hist-punch-interval">
+                                        <span class="hist-punch-time">{{ parts[0].strip() }}</span>
+                                        <span class="hist-punch-arrow">→</span>
+                                        <span class="hist-punch-time">{{ parts[1].split('(')[0].strip() }}</span>
+                                    </span>
+                                {%- else -%}
+                                    {{ e.note }}
+                                {%- endif -%}
+                            {%- else -%}
+                                {{ e.note or '—' }}
+                            {%- endif -%}
+                        </td>
+                        {% if current_user.is_authenticated %}
+                        <td>
+                            <details>
+                                <summary>Editar</summary>
+                                <form class="small-form" method="post" action="{{ url_for('update_entry', entry_id=e.id) }}">
+                                    <input type="hidden" name="_from_history" value="{{ collab.id }}">
+                                    <input type="date" name="entry_date" value="{{ e.entry_date.strftime('%Y-%m-%d') }}" required>
+                                    <input type="number" name="hours" step="0.5" value="{{ e.hours }}" required>
+                                    <input type="text" name="note" value="{{ e.note or '' }}" placeholder="Observação">
+                                    <div class="small-actions">
+                                        <button class="btn" type="submit">Salvar</button>
+                                    </div>
+                                </form>
+                                <form method="post" action="{{ url_for('delete_entry', entry_id=e.id) }}"
+                                      onsubmit="return confirm('Excluir lançamento?');">
+                                    <input type="hidden" name="_from_history" value="{{ collab.id }}">
+                                    <button class="btn btn-danger" type="submit">Excluir</button>
+                                </form>
+                            </details>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endfor %}
+</div>
+{% else %}
+<div class="hist-content">
+    <p class="empty" style="padding:2rem 1rem;">Nenhum lançamento registrado para este colaborador.</p>
+</div>
+{% endif %}
+
+<style>
+.hist-punch-interval {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    font-family: monospace;
+    font-size: .92rem;
+}
+.hist-punch-time {
+    background: var(--surface-2, #f0f2f5);
+    border: 1px solid var(--line, #dde1e7);
+    border-radius: 5px;
+    padding: .1rem .45rem;
+    font-weight: 600;
+    letter-spacing: .03em;
+    color: var(--text);
+}
+.hist-punch-arrow {
+    color: var(--muted, #888);
+    font-size: .85rem;
+}
+</style>
+
+{% endblock %}

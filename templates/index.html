@@ -1,0 +1,244 @@
+{% extends 'base.html' %}
+{% block title %}MultiMax{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div>
+        <p class="hero-tag">Registro de horas de colaboradores</p>
+        <div class="month-nav">
+            <a class="btn btn-ghost" href="{{ url_for('index', month=totals.prev_param) }}">&#8592; Anterior</a>
+            <span class="month-label">{{ totals.month_label }}</span>
+            <a class="btn btn-ghost" href="{{ url_for('index', month=totals.next_param) }}">Proximo &#8594;</a>
+            <a class="btn" href="{{ url_for('summary_pdf', month='%s-%02d'|format(totals.year, totals.month)) }}" target="_blank">&#8675; Exportar PDF</a>
+            {% if current_user.is_authenticated %}
+            <form method="post" action="{{ url_for('whatsapp_resumo') }}" style="display:inline" onsubmit="return confirm('Enviar resumo de {{ totals.month_label }} para o grupo WhatsApp?');">
+                <input type="hidden" name="month" value="{{ '%s-%02d'|format(totals.year, totals.month) }}">
+                <button class="btn btn-whatsapp" type="submit">&#128172; Enviar Resumo</button>
+            </form>
+            <form method="post" action="{{ url_for('whatsapp_pdf') }}" style="display:inline" onsubmit="return confirm('Enviar PDF de {{ totals.month_label }} para o grupo WhatsApp?');">
+                <input type="hidden" name="month" value="{{ '%s-%02d'|format(totals.year, totals.month) }}">
+                <button class="btn btn-whatsapp" type="submit">&#128196; Enviar PDF</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    <div class="hero-metrics">
+        <div class="metric">
+            <span>Mes</span>
+            <strong>{{ totals.month_label }}</strong>
+        </div>
+        <div class="metric">
+            <span>H Bruto</span>
+            <strong>{{ '%.1f'|format(totals.positive) }}h</strong>
+        </div>
+        <div class="metric">
+            <span>H Descontos</span>
+            <strong>{{ '%.1f'|format(totals.negative) }}h</strong>
+        </div>
+        <div class="metric">
+            <span>H Liquido</span>
+            <strong>{{ '%.1f'|format(totals.net) }}h</strong>
+        </div>
+        <div class="metric">
+            <span>Dias completos</span>
+            <strong>{{ totals.days }}</strong>
+        </div>
+        <div class="metric {% if total_value > 0 %}metric-value{% endif %}">
+            <span>Valor Est.</span>
+            <strong>{% if total_value > 0 %}R$ {{ '{:,.2f}'.format(total_value)|replace(',','X')|replace('.',',')|replace('X','.') }}{% else %}—{% endif %}</strong>
+        </div>
+    </div>
+    {% if current_user.is_authenticated %}
+    <details class="daily-rate-form">
+        <summary>&#9881; Definir valor da diária (8h)</summary>
+        <form method="post" action="{{ url_for('set_daily_rate') }}">
+            <input type="hidden" name="month" value="{{ '%s-%02d'|format(totals.year, totals.month) }}">
+            <input type="number" name="daily_rate" step="0.01" min="0" placeholder="Ex: 200.00"
+                   value="{{ daily_rate if daily_rate > 0 else '' }}" required>
+            <button class="btn" type="submit">Salvar</button>
+        </form>
+    </details>
+    {% endif %}
+</section>
+
+<section class="panel-grid">
+    <article class="panel">
+        <div class="panel-head">
+            <h3>Resumo por colaborador</h3>
+            <small>{{ totals.month_label }}</small>
+        </div>
+        <div class="cards-grid">
+            {% for item in cards %}
+            <div class="card">
+                <header>
+                    <h4>{{ item.name }}</h4>
+                    <span>{{ item.role }}</span>
+                </header>
+                <dl>
+                    <div><dt>H Bruto</dt><dd>{{ '%.1f'|format(item.positive) }}h</dd></div>
+                    <div><dt>H Descontos</dt><dd>{{ '%.1f'|format(item.negative) }}h</dd></div>
+                    <div><dt>H Liquido</dt><dd>{{ '%.1f'|format(item.net) }}h</dd></div>
+                    <div><dt>Dias</dt><dd>{{ item.days }}</dd></div>
+                </dl>
+            </div>
+            {% else %}
+            <p class="empty">Sem lancamentos em {{ totals.month_label }}.</p>
+            {% endfor %}
+        </div>
+    </article>
+
+    <article class="panel">
+        <div class="panel-head">
+            <h3>Colaboradores</h3>
+            <small>Cadastro base do fluxo</small>
+        </div>
+
+        {% if current_user.is_authenticated %}
+        <form class="inline-form" method="post" action="{{ url_for('create_collaborator') }}">
+            <input type="text" name="name" id="new-collab-name" placeholder="Nome" required>
+            <input type="text" name="role" placeholder="Funcao (opcional)">
+            <input type="number" name="daily_rate" step="0.01" min="0" placeholder="Diaria (R$)">
+            <div style="display:flex;gap:.4rem;align-items:center;">
+                <input type="text" name="ponto_password" id="new-collab-pass"
+                       placeholder="Senha ponto" style="flex:1" maxlength="10">
+                <button type="button" class="btn btn-ghost" style="white-space:nowrap"
+                        onclick="suggestPass('new-collab-name','new-collab-pass')">Sugerir</button>
+            </div>
+            <button class="btn" type="submit">Adicionar</button>
+        </form>
+        {% endif %}
+
+        <ul class="people-list">
+            {% for c in collaborators %}
+            <li>
+                <div class="person-main">
+                    <strong>{{ c.name }}</strong>
+                    <span>{{ c.role or '-' }}</span>
+                    <span>Diaria: {% if c.daily_rate is not none %}R$ {{ '{:,.2f}'.format(c.daily_rate)|replace(',','X')|replace('.',',')|replace('X','.') }}{% else %}-{% endif %}</span>
+                </div>
+                <div class="row-actions">
+                    <span class="status {{ 'on' if c.active else 'off' }}">{{ 'Ativo' if c.active else 'Inativo' }}</span>
+                    <a class="btn btn-ghost" href="{{ url_for('collaborator_history', collaborator_id=c.id) }}">Histórico</a>
+                    {% if current_user.is_authenticated %}
+                    <details class="collab-edit">
+                        <summary>Editar</summary>
+                        <form class="small-form" method="post" action="{{ url_for('update_collaborator', collaborator_id=c.id) }}">
+                            <input type="text" name="name" value="{{ c.name }}" required>
+                            <input type="text" name="role" value="{{ c.role or '' }}" placeholder="Funcao (opcional)">
+                            <input type="number" name="daily_rate" step="0.01" min="0" value="{{ c.daily_rate if c.daily_rate is not none else '' }}" placeholder="Diaria (R$)">
+                            <button class="btn" type="submit">Salvar</button>
+                        </form>
+                        <form class="small-form" method="post"
+                              action="{{ url_for('set_ponto_password', collaborator_id=c.id) }}">
+                            <div style="display:flex;gap:.4rem;align-items:center;">
+                                <input type="text" name="ponto_password"
+                                       id="pass-{{ c.id }}"
+                                       placeholder="Nova senha ponto" maxlength="10" style="flex:1">
+                                <button type="button" class="btn btn-ghost" style="white-space:nowrap"
+                                        onclick="suggestPassFixed('{{ c.name }}','pass-{{ c.id }}')">Sugerir</button>
+                            </div>
+                            <div style="display:flex;gap:.4rem;align-items:center;">
+                                <span style="font-size:.8rem;color:var(--text-muted)">
+                                    {% if c.ponto_password_hash %}&#10003; Senha definida{% else %}Sem senha{% endif %}
+                                </span>
+                                <button class="btn" type="submit" style="margin-left:auto">Definir senha</button>
+                            </div>
+                        </form>
+                    </details>
+                    <form method="post" action="{{ url_for('toggle_collaborator', collaborator_id=c.id) }}">
+                        <button class="btn btn-ghost" type="submit">Alternar</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </li>
+            {% else %}
+            <li class="empty">Nenhum colaborador cadastrado.</li>
+            {% endfor %}
+        </ul>
+    </article>
+</section>
+
+<section class="panel">
+    <div class="panel-head">
+        <h3>Lancamentos de horas</h3>
+            <small>{{ totals.month_label }}</small>
+    {% if current_user.is_authenticated %}
+    <form class="entry-form" method="post" action="{{ url_for('create_entry') }}">
+        <select name="collaborator_id" required>
+            <option value="">Colaborador</option>
+            {% for c in collaborators if c.active %}
+            <option value="{{ c.id }}">{{ c.name }}</option>
+            {% endfor %}
+        </select>
+        <input type="date" name="entry_date" required>
+        <input type="number" name="hours" step="0.5" placeholder="Horas (+/-)" required>
+        <input type="text" name="note" placeholder="Observacao">
+        <button class="btn" type="submit">Registrar</button>
+    </form>
+    {% endif %}
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Colaborador</th>
+                    <th>Horas</th>
+                    <th>Observacao</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in entries %}
+                <tr>
+                    <td>{{ e.entry_date.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ e.collaborator.name }}</td>
+                    <td class="hours {{ 'pos' if e.hours >= 0 else 'neg' }}">{{ '%.1f'|format(e.hours) }}h</td>
+                    <td>{{ e.note or '-' }}</td>
+                    <td>
+                        {% if current_user.is_authenticated %}
+                        <details>
+                            <summary>Editar</summary>
+                            <form class="small-form" method="post" action="{{ url_for('update_entry', entry_id=e.id) }}">
+                                <input type="date" name="entry_date" value="{{ e.entry_date.strftime('%Y-%m-%d') }}" required>
+                                <input type="number" name="hours" step="0.5" value="{{ e.hours }}" required>
+                                <input type="text" name="note" value="{{ e.note or '' }}" placeholder="Observacao">
+                                <div class="small-actions">
+                                    <button class="btn" type="submit">Salvar</button>
+                                </div>
+                            </form>
+                            <form method="post" action="{{ url_for('delete_entry', entry_id=e.id) }}" onsubmit="return confirm('Excluir lancamento?');">
+                                <button class="btn btn-danger" type="submit">Excluir</button>
+                            </form>
+                        </details>
+                        {% else %}
+                        <span class="locked">Somente leitura</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="empty">Sem lancamentos cadastrados.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<script>
+async function suggestPass(nameInputId, passInputId) {
+    const name = document.getElementById(nameInputId).value.trim();
+    if (!name) { alert('Digite o nome primeiro.'); return; }
+    const res = await fetch('/api/suggest-password?name=' + encodeURIComponent(name));
+    const json = await res.json();
+    if (json.senha) document.getElementById(passInputId).value = json.senha;
+}
+async function suggestPassFixed(name, passInputId) {
+    if (!name) return;
+    const res = await fetch('/api/suggest-password?name=' + encodeURIComponent(name));
+    const json = await res.json();
+    if (json.senha) document.getElementById(passInputId).value = json.senha;
+}
+</script>
+{% endblock %}
