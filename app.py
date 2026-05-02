@@ -1068,7 +1068,7 @@ def ponto_buscar_cpf():
 
 
 @app.post("/ponto/associar-cpf")
-@login_required
+@ponto_required
 def ponto_associar_cpf():
     """Associa um CPF a um colaborador existente."""
     cpf = re.sub(r"\D", "", request.json.get("cpf", "") if request.is_json else request.form.get("cpf", ""))
