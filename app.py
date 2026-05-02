@@ -1056,6 +1056,39 @@ def set_ponto_password(collaborator_id: int):
     return redirect(url_for("collaborator_history", collaborator_id=collaborator_id))
 
 
+@app.post("/collaborators/<int:collaborator_id>/make-admin")
+@login_required
+def make_collaborator_admin(collaborator_id: int):
+    """Cria uma conta de administrador para o colaborador."""
+    collab = db.session.get(Collaborator, collaborator_id)
+    if not collab:
+        flash("Colaborador nao encontrado.", "danger")
+        return redirect(url_for("index"))
+
+    username = (request.form.get("admin_username") or "").strip()
+    password = (request.form.get("admin_password") or "").strip()
+
+    if not username or not password:
+        flash("Usuario e senha sao obrigatorios.", "warning")
+        return redirect(url_for("index"))
+
+    if len(password) < 4:
+        flash("Senha deve ter no minimo 4 caracteres.", "warning")
+        return redirect(url_for("index"))
+
+    if User.query.filter(func.lower(User.username) == username.lower()).first():
+        flash(f"Usuario '{username}' ja existe.", "warning")
+        return redirect(url_for("index"))
+
+    db.session.add(User(
+        username=username,
+        password_hash=generate_password_hash(password),
+    ))
+    db.session.commit()
+    flash(f"Admin '{username}' criado para {collab.name}.", "success")
+    return redirect(url_for("index"))
+
+
 # ---------------------------------------------------------------------------
 # Ponto eletronico
 # ---------------------------------------------------------------------------

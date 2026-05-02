@@ -144,6 +144,15 @@
                                 <button class="btn" type="submit" style="margin-left:auto">Definir senha</button>
                             </div>
                         </form>
+                        <hr style="margin:.5rem 0;border-color:var(--border)">
+                        <p style="font-size:.8rem;color:var(--text-muted);margin:.25rem 0">Tornar administrador</p>
+                        <form class="small-form" method="post"
+                              action="{{ url_for('make_collaborator_admin', collaborator_id=c.id) }}">
+                            <input type="text" name="admin_username" placeholder="Login de admin"
+                                   value="{{ c.name.split()[0]|lower }}" required>
+                            <input type="password" name="admin_password" placeholder="Senha de admin" required minlength="4">
+                            <button class="btn" type="submit">Criar acesso admin</button>
+                        </form>
                     </details>
                     <form method="post" action="{{ url_for('toggle_collaborator', collaborator_id=c.id) }}">
                         <button class="btn btn-ghost" type="submit">Alternar</button>
