@@ -470,6 +470,56 @@ def logout():
     return redirect(url_for("index"))
 
 
+# ---------------------------------------------------------------------------
+# Gestao de admins
+# ---------------------------------------------------------------------------
+
+@app.get("/settings/admins")
+@login_required
+def admins_list():
+    """Lista todos os usuarios administradores."""
+    admins = User.query.order_by(User.username.asc()).all()
+    return render_template("admins.html", admins=admins)
+
+
+@app.post("/settings/admins/create")
+@login_required
+def admin_create():
+    """Cria um novo usuario administrador."""
+    username = (request.form.get("username") or "").strip()
+    password = (request.form.get("password") or "").strip()
+    if not username or not password:
+        flash("Nome de usuario e senha sao obrigatorios.", "warning")
+        return redirect(url_for("admins_list"))
+    if User.query.filter(func.lower(User.username) == username.lower()).first():
+        flash(f"Usuario '{username}' ja existe.", "warning")
+        return redirect(url_for("admins_list"))
+    db.session.add(User(
+        username=username,
+        password_hash=generate_password_hash(password),
+    ))
+    db.session.commit()
+    flash(f"Admin '{username}' criado com sucesso.", "success")
+    return redirect(url_for("admins_list"))
+
+
+@app.post("/settings/admins/<int:user_id>/delete")
+@login_required
+def admin_delete(user_id: int):
+    """Remove um usuario administrador (nao pode remover a si mesmo)."""
+    if user_id == current_user.id:
+        flash("Voce nao pode remover sua propria conta.", "danger")
+        return redirect(url_for("admins_list"))
+    target = db.session.get(User, user_id)
+    if not target:
+        flash("Usuario nao encontrado.", "warning")
+        return redirect(url_for("admins_list"))
+    db.session.delete(target)
+    db.session.commit()
+    flash(f"Admin '{target.username}' removido.", "success")
+    return redirect(url_for("admins_list"))
+
+
 @app.post("/settings/daily-rate")
 @login_required
 def set_daily_rate():

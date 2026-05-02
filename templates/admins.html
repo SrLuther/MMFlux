@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Administradores | MultiMax{% endblock %}
+{% block content %}
+<section class="page-wrap">
+
+  <header class="page-header">
+    <h2>Administradores</h2>
+    <p class="sub">Gerencie os usuarios com acesso total ao sistema.</p>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <p class="alert alert-{{ cat }}">{{ msg }}</p>
+    {% endfor %}
+  {% endwith %}
+
+  <article class="card mb-lg">
+    <h3>Novo administrador</h3>
+    <form method="post" action="{{ url_for('admin_create') }}" class="inline-form">
+      <input type="text" name="username" placeholder="Nome de usuario" required autocomplete="off">
+      <input type="password" name="password" placeholder="Senha" required autocomplete="new-password">
+      <button class="btn" type="submit">Criar</button>
+    </form>
+  </article>
+
+  <article class="card">
+    <h3>Usuarios cadastrados</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Usuario</th>
+          <th>Criado em</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for admin in admins %}
+        <tr>
+          <td>{{ admin.id }}</td>
+          <td>
+            {{ admin.username }}
+            {% if admin.id == current_user.id %}
+              <span class="pill">voce</span>
+            {% endif %}
+          </td>
+          <td>{{ admin.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>
+            {% if admin.id != current_user.id %}
+            <form method="post" action="{{ url_for('admin_delete', user_id=admin.id) }}"
+                  onsubmit="return confirm('Remover admin {{ admin.username }}?')">
+              <button class="btn btn-sm btn-danger" type="submit">Remover</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+
+</section>
+{% endblock %}

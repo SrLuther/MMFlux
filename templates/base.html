@@ -36,6 +36,7 @@
         <nav class="actions">
             <a class="btn btn-ghost" href="{{ url_for('ponto') }}">&#128247; Ponto</a>
             {% if current_user.is_authenticated %}
+            <a class="btn btn-ghost" href="{{ url_for('admins_list') }}">&#128100; Admins</a>
             <span class="pill">Modo edicao ativo</span>
             <form method="post" action="{{ url_for('logout') }}">
                 <button class="btn btn-ghost" type="submit">Sair</button>
