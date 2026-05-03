@@ -84,7 +84,17 @@
                     <div><dt>H Descontos</dt><dd>{{ item.negative|hhmm }}</dd></div>
                     <div><dt>H Liquido</dt><dd>{{ item.net|hhmm }}</dd></div>
                     <div><dt>Dias</dt><dd>{{ item.days }}</dd></div>
+                    <div><dt>Dir. Folga</dt><dd class="{% if item.folga_days > 0 %}folga-ok{% else %}folga-zero{% endif %}">{{ item.folga_days }}d</dd></div>
                 </dl>
+                {% if current_user.is_authenticated and item.folga_days > 0 %}
+                <form class="use-folga-form" method="post"
+                      action="{{ url_for('use_folga', collaborator_id=item.collab_id) }}"
+                      onsubmit="return confirm('Descontar 1 dia de folga de {{ item.name }}?')">
+                    <input type="date" name="folga_date" value="{{ totals.month_start }}" required>
+                    <input type="text" name="note" placeholder="Obs (opcional)" value="Folga utilizada">
+                    <button class="btn btn-folga" type="submit">&#127774; Usar Folga</button>
+                </form>
+                {% endif %}
             </div>
             {% else %}
             <p class="empty">Sem lancamentos em {{ totals.month_label }}.</p>
@@ -187,6 +197,9 @@
         <input type="date" name="entry_date" required>
         <input type="number" name="hours" step="0.5" placeholder="Horas (+/-)" required>
         <input type="text" name="note" placeholder="Observacao">
+        <label class="gives-folga-label">
+            <input type="checkbox" name="gives_folga" value="1"> D. Folga
+        </label>
         <button class="btn" type="submit">Registrar</button>
     </form>
     {% endif %}
@@ -207,7 +220,7 @@
                 <tr>
                     <td>{{ e.entry_date.strftime('%d/%m/%Y') }}</td>
                     <td>{{ e.collaborator.name }}</td>
-                    <td class="hours {{ 'pos' if e.hours >= 0 else 'neg' }}">{{ '%.1f'|format(e.hours) }}h</td>
+                    <td class="hours {{ 'pos' if e.hours >= 0 else 'neg' }}">{{ e.hours|hhmm }}{% if e.gives_folga %} <span class="folga-tag">&#127774;</span>{% endif %}</td>
                     <td>{{ e.note or '-' }}</td>
                     <td>
                         {% if current_user.is_authenticated %}
@@ -217,6 +230,9 @@
                                 <input type="date" name="entry_date" value="{{ e.entry_date.strftime('%Y-%m-%d') }}" required>
                                 <input type="number" name="hours" step="0.5" value="{{ e.hours }}" required>
                                 <input type="text" name="note" value="{{ e.note or '' }}" placeholder="Observacao">
+                                <label class="gives-folga-label">
+                                    <input type="checkbox" name="gives_folga" value="1" {% if e.gives_folga %}checked{% endif %}> D. Folga
+                                </label>
                                 <div class="small-actions">
                                     <button class="btn" type="submit">Salvar</button>
                                 </div>

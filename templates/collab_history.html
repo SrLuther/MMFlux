@@ -58,7 +58,26 @@
             <span>Diária usada</span>
             <strong>{% if collab_daily_rate > 0 %}R$ {{ '{:,.2f}'.format(collab_daily_rate)|replace(',','X')|replace('.',',')|replace('X','.') }}{% else %}—{% endif %}</strong>
         </div>
+        <div class="metric {% if collab.folga_days > 0 %}metric-folga{% endif %}">
+            <span>Dir. Folga</span>
+            <strong>{{ collab.folga_days }}d</strong>
+        </div>
     </div>
+    {% if current_user.is_authenticated %}
+    <div class="hist-folga-bar">
+        <form class="folga-use-form" method="post"
+              action="{{ url_for('use_folga', collaborator_id=collab.id) }}"
+              onsubmit="return confirm('Descontar 1 dia de folga de {{ collab.name }}?')">
+            <input type="hidden" name="_from_history" value="{{ collab.id }}">
+            <input type="date" name="folga_date" value="{{ today }}" required>
+            <input type="text" name="note" value="Folga utilizada" placeholder="Obs">
+            <button class="btn btn-folga" type="submit"
+                    {% if collab.folga_days < 1 %}disabled title="Sem folgas disponíveis"{% endif %}>
+                &#127774; Usar Folga ({{ collab.folga_days }}d disponív{% if collab.folga_days == 1 %}el{% else %}eis{% endif %})
+            </button>
+        </form>
+    </div>
+    {% endif %}
 </section>
 
 {% if months %}
@@ -95,7 +114,7 @@
                     <tr>
                         <td>{{ e.entry_date.strftime('%d/%m/%Y') }}</td>
                         <td class="hours {{ 'pos' if e.hours >= 0 else 'neg' }}">
-                            {{ e.hours|hhmm }}
+                            {{ e.hours|hhmm }}{% if e.gives_folga %} <span class="folga-tag">&#127774;</span>{% endif %}
                         </td>
                         <td>
                             {%- if e.note and e.note.startswith('Ponto:') -%}
@@ -122,6 +141,9 @@
                                     <input type="date" name="entry_date" value="{{ e.entry_date.strftime('%Y-%m-%d') }}" required>
                                     <input type="number" name="hours" step="0.5" value="{{ e.hours }}" required>
                                     <input type="text" name="note" value="{{ e.note or '' }}" placeholder="Observação">
+                                    <label class="gives-folga-label">
+                                        <input type="checkbox" name="gives_folga" value="1" {% if e.gives_folga %}checked{% endif %}> D. Folga
+                                    </label>
                                     <div class="small-actions">
                                         <button class="btn" type="submit">Salvar</button>
                                     </div>

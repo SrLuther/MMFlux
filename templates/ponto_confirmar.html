@@ -147,6 +147,13 @@
 
         </div><!-- /.pconf-grid -->
 
+        <div class="pconf-folga-opt">
+            <label class="pconf-folga-label">
+                <input type="checkbox" name="gives_folga" value="1">
+                <span>&#127774; Este registro dá direito a folga</span>
+            </label>
+        </div>
+
         <div class="pconf-actions">
             <a class="btn btn-ghost" href="{{ url_for('ponto') }}">Cancelar</a>
             <!-- label dispara o input que está fora do form principal (via atributo form=) -->
@@ -531,6 +538,22 @@
 }
 .pconf-actions .btn-ghost:hover {
     background: var(--surface-3);
+}
+.pconf-folga-opt {
+    margin: .75rem 0 .25rem;
+}
+.pconf-folga-label {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .95rem;
+    cursor: pointer;
+    user-select: none;
+}
+.pconf-folga-label input[type=checkbox] {
+    width: 1.1rem;
+    height: 1.1rem;
+    cursor: pointer;
 }
 .pconf-actions {
     display: flex;

@@ -121,6 +121,7 @@ class Collaborator(Base):
     cpf = db.Column(db.String(20), nullable=True, index=True)
     ponto_password_hash = db.Column(db.String(255), nullable=True)
     active = db.Column(db.Boolean, nullable=False, default=True)
+    folga_days = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(
         db.DateTime,
         default=datetime.utcnow,
@@ -144,6 +145,7 @@ class HourEntry(Base):
     hours = db.Column(db.Numeric(6, 2), nullable=False)
     note = db.Column(db.String(255), nullable=True)
     archived = db.Column(db.Boolean, nullable=False, default=False)
+    gives_folga = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(
         db.DateTime,
         default=datetime.utcnow,
@@ -277,6 +279,20 @@ def ensure_schema() -> None:
         )
         db.session.commit()
 
+    # hour_entry.gives_folga (adicionado em v0.8.0)
+    if he_col_names and "gives_folga" not in he_col_names:
+        db.session.execute(
+            text("ALTER TABLE hour_entry ADD COLUMN gives_folga BOOLEAN NOT NULL DEFAULT 0")
+        )
+        db.session.commit()
+
+    # collaborator.folga_days (adicionado em v0.8.0)
+    if "folga_days" not in col_names:
+        db.session.execute(
+            text("ALTER TABLE collaborator ADD COLUMN folga_days INTEGER NOT NULL DEFAULT 0")
+        )
+        db.session.commit()
+
 
 def suggest_ponto_password(name: str) -> str:
     """Sugere senha de ponto: 1a letra maiuscula + posicoes alfabeticas ate 4-5 digitos.
@@ -345,10 +361,12 @@ def monthly_summary(
         lambda: {
             "name": "",
             "role": "",
+            "collab_id": 0,
             "positive": Decimal("0"),
             "negative": Decimal("0"),
             "net": Decimal("0"),
             "days": 0,
+            "folga_days": 0,
         }
     )
 
@@ -356,6 +374,8 @@ def monthly_summary(
         bucket = grouped[collab.id]
         bucket["name"] = collab.name
         bucket["role"] = collab.role or "-"
+        bucket["collab_id"] = collab.id
+        bucket["folga_days"] = collab.folga_days
         hours_value = Decimal(entry.hours)
         if hours_value >= 0:
             bucket["positive"] += hours_value
@@ -679,6 +699,7 @@ def create_entry():
     entry_date_raw = request.form.get("entry_date") or ""
     hours_raw = request.form.get("hours") or ""
     note = (request.form.get("note") or "").strip()
+    gives_folga = bool(request.form.get("gives_folga"))
 
     try:
         collaborator_id = int(collaborator_id_raw)
@@ -699,8 +720,11 @@ def create_entry():
             entry_date=entry_date,
             hours=hours,
             note=note or None,
+            gives_folga=gives_folga,
         )
     )
+    if gives_folga:
+        collaborator.folga_days += 1
     db.session.commit()
     wz.entry_criado(
         collaborator.name,
@@ -732,6 +756,15 @@ def update_entry(entry_id: int):
         flash(str(exc), "warning")
         return redirect(url_for("index"))
 
+    new_gives_folga = bool(request.form.get("gives_folga"))
+    if new_gives_folga != entry.gives_folga:
+        collab = db.session.get(Collaborator, entry.collaborator_id)
+        if collab:
+            if new_gives_folga:
+                collab.folga_days += 1
+            else:
+                collab.folga_days = max(0, collab.folga_days - 1)
+    entry.gives_folga = new_gives_folga
     entry.note = (request.form.get("note") or "").strip() or None
     entry.updated_at = datetime.utcnow()
     db.session.commit()
@@ -764,6 +797,10 @@ def delete_entry(entry_id: int):
     hours_val = entry.hours
     from_history = request.form.get("_from_history")
     collab_id_hist = entry.collaborator_id
+    if entry.gives_folga:
+        collab = db.session.get(Collaborator, entry.collaborator_id)
+        if collab:
+            collab.folga_days = max(0, collab.folga_days - 1)
     db.session.delete(entry)
     db.session.commit()
     wz.entry_removido(collab_name, date_str, hours_val)
@@ -772,6 +809,50 @@ def delete_entry(entry_id: int):
         return redirect(
             url_for("collaborator_history", collaborator_id=collab_id_hist)
         )
+    return redirect(url_for("index"))
+
+
+@app.post("/collaborators/<int:collaborator_id>/use-folga")
+@login_required
+def use_folga(collaborator_id: int):
+    """Desconta 1 dia de folga do colaborador e cria lancamento negativo de 7h20."""
+    collab = db.session.get(Collaborator, collaborator_id)
+    if not collab:
+        flash("Colaborador nao encontrado.", "danger")
+        return redirect(url_for("index"))
+
+    if collab.folga_days < 1:
+        flash(f"{collab.name} nao possui dias de folga disponíveis.", "warning")
+        from_history = request.form.get("_from_history")
+        if from_history:
+            return redirect(url_for("collaborator_history", collaborator_id=collaborator_id))
+        return redirect(url_for("index"))
+
+    date_raw = (request.form.get("folga_date") or "").strip()
+    try:
+        folga_date = datetime.strptime(date_raw, "%Y-%m-%d").date()
+    except ValueError:
+        folga_date = date.today()
+
+    note = (request.form.get("note") or "Folga utilizada").strip()
+
+    db.session.add(HourEntry(
+        collaborator_id=collaborator_id,
+        entry_date=folga_date,
+        hours=Decimal("-7.33"),
+        note=note,
+        gives_folga=False,
+    ))
+    collab.folga_days -= 1
+    db.session.commit()
+    flash(
+        f"Folga descontada de {collab.name}. "
+        f"Saldo restante: {collab.folga_days} dia(s).",
+        "success",
+    )
+    from_history = request.form.get("_from_history")
+    if from_history:
+        return redirect(url_for("collaborator_history", collaborator_id=collaborator_id))
     return redirect(url_for("index"))
 
 
@@ -845,6 +926,7 @@ def collaborator_history(collaborator_id: int):
         totals=totals_global,
         collab_daily_rate=collab_daily_rate,
         total_value=total_value,
+        today=date.today().isoformat(),
     )
 
 
@@ -1433,6 +1515,7 @@ def ponto_upload():
 def _try_register_interval(
     collab_id: int,
     punch_date: date,
+    gives_folga: bool = False,
 ) -> str | None:
     """Reprocessa TODOS os registros de ponto do colaborador no dia.
 
@@ -1491,6 +1574,7 @@ def _try_register_interval(
                 entry_date=punch_date,
                 hours=hours,
                 note=note,
+                gives_folga=gives_folga,
             )
         )
         p1.processed = True
@@ -1502,6 +1586,11 @@ def _try_register_interval(
 
     if not intervals:
         return None
+
+    if gives_folga:
+        collab = db.session.get(Collaborator, collab_id)
+        if collab:
+            collab.folga_days += 1
 
     return ", ".join(intervals)
 
@@ -1518,6 +1607,7 @@ def ponto_confirmar():
     nsr = (request.form.get("nsr") or "").strip()
     nrep = (request.form.get("nrep") or "").strip() or None
     ad_key = (request.form.get("ad_key") or "").strip() or None
+    gives_folga = bool(request.form.get("gives_folga"))
     collab_id_raw = (request.form.get("collaborator_id") or "").strip()
 
     try:
@@ -1581,7 +1671,7 @@ def ponto_confirmar():
 
     interval_msg: str | None = None
     if collab_id:
-        interval_msg = _try_register_interval(collab_id, punch_date)
+        interval_msg = _try_register_interval(collab_id, punch_date, gives_folga)
 
     db.session.commit()
 
