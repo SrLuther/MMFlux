@@ -13,6 +13,28 @@
 - fix: métricas duplicadas após refatoração — bloco residual removido.
 - chore: CSS `.hist-content` refatorado para card único com border-radius e largura uniforme.
 
+## [0.8.0] - 2026-05-02
+- feat: campo `gives_folga` em HourEntry — lançamentos marcados como "Direito a Folga" acumulam dias de folga no colaborador.
+- feat: modelo Collaborator ganha `folga_days` (contador de dias acumulados).
+- feat: rota `POST /collaborators/<id>/use-folga` — desconta 1 dia de folga com data e observação.
+- feat: barra de uso de folga no histórico do colaborador (botão desabilitado quando sem saldo).
+- feat: tag 🌴 exibida nos lançamentos com folga nas tabelas e no PDF individual.
+- feat: checkbox "D. Folga" no formulário de lançar horas e na confirmação de ponto.
+- fix: migração automática das colunas `gives_folga` e `folga_days` em bases existentes.
+- chore: CSS `.folga-tag`, `.btn-folga`, `.hist-folga-bar` adicionados.
+
+## [0.7.0] - 2026-05-02
+- feat: arquivo morto de lançamentos — rota `/archive` lista lançamentos arquivados com totais por mês.
+- feat: rota `POST /archive/month` arquiva todos os lançamentos de um mês (remove do painel ativo).
+- feat: PDF individual por colaborador (`/collaborators/<id>/pdf`) com todos os lançamentos e totais.
+- feat: botão "Baixar PDF" na página de histórico do colaborador.
+- feat: template `pdf_collab.html` com capa, sumário e lançamentos detalhados por mês.
+- feat: promoção de colaborador a admin — cria login de acesso total a partir do cadastro.
+- feat: gestão de admins — criar e remover usuários admin pelo painel.
+- fix: `/ponto/associar-cpf` exigia `login_required` em vez de `ponto_required`.
+- fix: confirmação OCR renderiza HTML direto em vez de redirecionar via URL externa.
+- fix: rota `/ponto/upload` aceita GET para evitar erro 405 após OCR.
+
 ## [0.6.0] - 2026-05-02
 - feat: sistema de usuários exclusivo para alimentar o ponto via câmera.
 - feat: colaboradores cadastrados podem fazer login com nome + senha de ponto.
