@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.9.0] - 2026-05-02
+- feat: painel administrativo dedicado no index — exportar PDF, enviar WhatsApp, arquivar mês, definir diária e lançar horas em bloco único visível apenas para admin.
+- feat: botão "Exportar PDF" movido para fora do painel admin — disponível para qualquer visitante.
+- feat: paginação semanal no histórico do colaborador (nav ← semana →).
+- feat: paginação por mês no histórico do colaborador (nav ← Anterior / Próximo →).
+- feat: métricas do histórico reordenadas e coloridas: H Bruto (verde), H Descontos (vermelho), neutros (amarelo), Valor Est. (verde + borda verde).
+- feat: filtro "Meses no resumo" reposicionado como card no grid de métricas — abre painel inline abaixo do nome.
+- feat: seção de lançamentos do histórico agrupada em card branco de largura igual ao hero.
+- fix: tabelas em `.hist-content` ocultas pelo reset CSS global — override adicionado.
+- fix: botões de navegação invisíveis em fundo claro — override de cor aplicado.
+- fix: métricas duplicadas após refatoração — bloco residual removido.
+- chore: CSS `.hist-content` refatorado para card único com border-radius e largura uniforme.
+
 ## [0.6.0] - 2026-05-02
 - feat: sistema de usuários exclusivo para alimentar o ponto via câmera.
 - feat: colaboradores cadastrados podem fazer login com nome + senha de ponto.

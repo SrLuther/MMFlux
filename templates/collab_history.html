@@ -29,38 +29,62 @@
         </details>
         {% endif %}
     </div>
+    {% if all_month_keys|length > 1 %}
+    <div id="sel-panel" class="hist-sel-panel{% if not sel_is_all %} open{% endif %}">
+        <form id="sel-form" method="get" class="hist-sel-form">
+            {% if sel_month_key %}<input type="hidden" name="month" value="{{ sel_month_key }}">{% endif %}
+            {% for k in all_month_keys %}
+            {% set y, mo = k.split('-') %}
+            <label class="hist-sel-check">
+                <input type="checkbox" name="sel_cb" value="{{ k }}" {% if k in sel_keys %}checked{% endif %}>
+                {{ mo }}/{{ y }}
+            </label>
+            {% endfor %}
+            <div class="hist-sel-actions">
+                <button type="button" id="sel-all" class="btn btn-ghost btn-sm">Todos</button>
+                <button type="button" id="sel-none" class="btn btn-ghost btn-sm">Nenhum</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
     <div class="hero-metrics">
-        <div class="metric">
-            <span>Lançamentos</span>
-            <strong>{{ totals.count }}</strong>
-        </div>
-        <div class="metric">
+        {% if all_month_keys|length > 1 %}
+        <button type="button" id="toggle-sel" class="metric metric-sel-btn{% if not sel_is_all %} active{% endif %}">
+            <span>&#128197; Meses no resumo</span>
+            <strong>{% if not sel_is_all %}{{ sel_keys|length }}/{{ all_month_keys|length }}{% else %}Todos{% endif %}</strong>
+        </button>
+        {% endif %}
+        <div class="metric metric-add">
             <span>H Bruto</span>
             <strong>{{ totals.positive|hhmm }}</strong>
         </div>
-        <div class="metric">
+        <div class="metric metric-sub">
             <span>H Descontos</span>
             <strong>{{ totals.negative|hhmm }}</strong>
         </div>
-        <div class="metric">
+        <div class="metric metric-neutral">
             <span>H Líquido</span>
             <strong>{{ totals.net|hhmm }}</strong>
         </div>
-        <div class="metric">
+        <div class="metric metric-neutral">
+            <span>Lançamentos</span>
+            <strong>{{ totals.count }}</strong>
+        </div>
+        <div class="metric metric-neutral">
             <span>Dias completos</span>
             <strong>{{ totals.days }}</strong>
+        </div>
+        <div class="metric metric-neutral">
+            <span>Dir. Folga</span>
+            <strong>{{ collab.folga_days }}d</strong>
+        </div>
+        <div class="metric metric-neutral">
+            <span>Diária usada</span>
+            <strong>{% if collab_daily_rate > 0 %}R$ {{ '{:,.2f}'.format(collab_daily_rate)|replace(',','X')|replace('.',',')|replace('X','.') }}{% else %}—{% endif %}</strong>
         </div>
         <div class="metric {% if total_value > 0 %}metric-value{% endif %}">
             <span>Valor Est.</span>
             <strong>{% if total_value > 0 %}R$ {{ '{:,.2f}'.format(total_value)|replace(',','X')|replace('.',',')|replace('X','.') }}{% else %}—{% endif %}</strong>
-        </div>
-        <div class="metric">
-            <span>Diária usada</span>
-            <strong>{% if collab_daily_rate > 0 %}R$ {{ '{:,.2f}'.format(collab_daily_rate)|replace(',','X')|replace('.',',')|replace('X','.') }}{% else %}—{% endif %}</strong>
-        </div>
-        <div class="metric {% if collab.folga_days > 0 %}metric-folga{% endif %}">
-            <span>Dir. Folga</span>
-            <strong>{{ collab.folga_days }}d</strong>
         </div>
     </div>
     {% if current_user.is_authenticated %}
@@ -80,89 +104,114 @@
     {% endif %}
 </section>
 
-{% if months %}
+{% if all_month_keys %}
 <div class="hist-content">
-    {% for m in months %}
-    {% set pos = namespace(v=0) %}
-    {% set neg = namespace(v=0) %}
-    {% for e in m.entries %}
-        {% if e.hours >= 0 %}{% set pos.v = pos.v + e.hours|float %}{% endif %}
-        {% if e.hours < 0 %}{% set neg.v = neg.v + e.hours|float|abs %}{% endif %}
-    {% endfor %}
 
-    <section class="hist-month">
-        <div class="hist-month-head">
-            <h3>{{ m.label }}</h3>
-            <div class="hist-month-stats">
-                <span class="mstat pos">+{{ pos.v|hhmm }}</span>
-                {% if neg.v > 0 %}<span class="mstat neg">-{{ neg.v|hhmm }}</span>{% endif %}
-                <span class="mstat net">= {{ (pos.v - neg.v)|hhmm }}</span>
-            </div>
-        </div>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Data</th>
-                        <th>Horas</th>
-                        <th>Observação</th>
-                        {% if current_user.is_authenticated %}<th></th>{% endif %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for e in m.entries %}
-                    <tr>
-                        <td>{{ e.entry_date.strftime('%d/%m/%Y') }}</td>
-                        <td class="hours {{ 'pos' if e.hours >= 0 else 'neg' }}">
-                            {{ e.hours|hhmm }}{% if e.gives_folga %} <span class="folga-tag">&#127774;</span>{% endif %}
-                        </td>
-                        <td>
-                            {%- if e.note and e.note.startswith('Ponto:') -%}
-                                {%- set parts = e.note[6:].split('→') -%}
-                                {%- if parts|length == 2 -%}
-                                    <span class="hist-punch-interval">
-                                        <span class="hist-punch-time">{{ parts[0].strip() }}</span>
-                                        <span class="hist-punch-arrow">→</span>
-                                        <span class="hist-punch-time">{{ parts[1].split('(')[0].strip() }}</span>
-                                    </span>
-                                {%- else -%}
-                                    {{ e.note }}
-                                {%- endif -%}
+    <!-- Nav mes -->
+    <div class="hist-nav">
+        {% if prev_month_key %}
+        <a class="btn btn-ghost" href="{{ url_for('collaborator_history', collaborator_id=collab.id, month=prev_month_key) }}">&#8592; Anterior</a>
+        {% else %}
+        <span class="btn btn-ghost disabled">&#8592; Anterior</span>
+        {% endif %}
+        <span class="hist-nav-label">{{ sel_month_label }}</span>
+        {% if next_month_key %}
+        <a class="btn btn-ghost" href="{{ url_for('collaborator_history', collaborator_id=collab.id, month=next_month_key) }}">Próximo &#8594;</a>
+        {% else %}
+        <span class="btn btn-ghost disabled">Próximo &#8594;</span>
+        {% endif %}
+    </div>
+
+    <!-- Stats do mes -->
+    <div class="hist-month-stats-bar">
+        <span class="mstat pos">+{{ month_pos|hhmm }}</span>
+        {% if month_neg > 0 %}<span class="mstat neg">−{{ month_neg|hhmm }}</span>{% endif %}
+        <span class="mstat net">= {{ (month_pos - month_neg)|hhmm }}</span>
+    </div>
+
+    {% if weeks %}
+    <!-- Nav semana -->
+    <div class="hist-week-nav">
+        {% if prev_week is not none %}
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('collaborator_history', collaborator_id=collab.id, month=sel_month_key, week=prev_week) }}">&#8592;</a>
+        {% else %}
+        <span class="btn btn-ghost btn-sm disabled">&#8592;</span>
+        {% endif %}
+        <span class="hist-week-label">{{ week_data.label }}</span>
+        {% if next_week is not none %}
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('collaborator_history', collaborator_id=collab.id, month=sel_month_key, week=next_week) }}">&#8594;</a>
+        {% else %}
+        <span class="btn btn-ghost btn-sm disabled">&#8594;</span>
+        {% endif %}
+        <span class="hist-week-count">Semana {{ sel_week_idx + 1 }}/{{ weeks|length }}</span>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Horas</th>
+                    <th>Observação</th>
+                    {% if current_user.is_authenticated %}<th></th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in week_data.entries %}
+                <tr>
+                    <td>{{ e.entry_date.strftime('%d/%m/%Y') }}</td>
+                    <td class="hours {{ 'pos' if e.hours >= 0 else 'neg' }}">
+                        {{ e.hours|hhmm }}{% if e.gives_folga %} <span class="folga-tag">&#127774;</span>{% endif %}
+                    </td>
+                    <td>
+                        {%- if e.note and e.note.startswith('Ponto:') -%}
+                            {%- set parts = e.note[6:].split('→') -%}
+                            {%- if parts|length == 2 -%}
+                                <span class="hist-punch-interval">
+                                    <span class="hist-punch-time">{{ parts[0].strip() }}</span>
+                                    <span class="hist-punch-arrow">→</span>
+                                    <span class="hist-punch-time">{{ parts[1].split('(')[0].strip() }}</span>
+                                </span>
                             {%- else -%}
-                                {{ e.note or '—' }}
+                                {{ e.note }}
                             {%- endif -%}
-                        </td>
-                        {% if current_user.is_authenticated %}
-                        <td>
-                            <details>
-                                <summary>Editar</summary>
-                                <form class="small-form" method="post" action="{{ url_for('update_entry', entry_id=e.id) }}">
-                                    <input type="hidden" name="_from_history" value="{{ collab.id }}">
-                                    <input type="date" name="entry_date" value="{{ e.entry_date.strftime('%Y-%m-%d') }}" required>
-                                    <input type="number" name="hours" step="0.5" value="{{ e.hours }}" required>
-                                    <input type="text" name="note" value="{{ e.note or '' }}" placeholder="Observação">
-                                    <label class="gives-folga-label">
-                                        <input type="checkbox" name="gives_folga" value="1" {% if e.gives_folga %}checked{% endif %}> D. Folga
-                                    </label>
-                                    <div class="small-actions">
-                                        <button class="btn" type="submit">Salvar</button>
-                                    </div>
-                                </form>
-                                <form method="post" action="{{ url_for('delete_entry', entry_id=e.id) }}"
-                                      onsubmit="return confirm('Excluir lançamento?');">
-                                    <input type="hidden" name="_from_history" value="{{ collab.id }}">
-                                    <button class="btn btn-danger" type="submit">Excluir</button>
-                                </form>
-                            </details>
-                        </td>
-                        {% endif %}
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </section>
-    {% endfor %}
+                        {%- else -%}
+                            {{ e.note or '—' }}
+                        {%- endif -%}
+                    </td>
+                    {% if current_user.is_authenticated %}
+                    <td>
+                        <details>
+                            <summary>Editar</summary>
+                            <form class="small-form" method="post" action="{{ url_for('update_entry', entry_id=e.id) }}">
+                                <input type="hidden" name="_from_history" value="{{ collab.id }}">
+                                <input type="date" name="entry_date" value="{{ e.entry_date.strftime('%Y-%m-%d') }}" required>
+                                <input type="number" name="hours" step="0.5" value="{{ e.hours }}" required>
+                                <input type="text" name="note" value="{{ e.note or '' }}" placeholder="Observação">
+                                <label class="gives-folga-label">
+                                    <input type="checkbox" name="gives_folga" value="1" {% if e.gives_folga %}checked{% endif %}> D. Folga
+                                </label>
+                                <div class="small-actions">
+                                    <button class="btn" type="submit">Salvar</button>
+                                </div>
+                            </form>
+                            <form method="post" action="{{ url_for('delete_entry', entry_id=e.id) }}"
+                                  onsubmit="return confirm('Excluir lançamento?');">
+                                <input type="hidden" name="_from_history" value="{{ collab.id }}">
+                                <button class="btn btn-danger" type="submit">Excluir</button>
+                            </form>
+                        </details>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="empty" style="padding:2rem 1rem;">Nenhum lançamento neste mês.</p>
+    {% endif %}
+
 </div>
 {% else %}
 <div class="hist-content">
@@ -187,10 +236,158 @@
     letter-spacing: .03em;
     color: var(--text);
 }
-.hist-punch-arrow {
-    color: var(--muted, #888);
-    font-size: .85rem;
+.hist-punch-arrow { color: var(--muted, #888); font-size: .85rem; }
+
+/* ── Nav de mês ── */
+.hist-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .75rem var(--page-px);
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
 }
+.hist-nav-label {
+    font-weight: 700;
+    font-size: .95rem;
+    color: var(--navy);
+    flex: 1;
+    text-align: center;
+}
+
+/* ── Stats do mês ── */
+.hist-month-stats-bar {
+    display: flex;
+    gap: .6rem;
+    align-items: center;
+    padding: .45rem var(--page-px);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+    font-size: .85rem;
+    font-weight: 700;
+}
+
+/* ── Nav de semana ── */
+.hist-week-nav {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem var(--page-px);
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+}
+.hist-week-label {
+    flex: 1;
+    text-align: center;
+    font-size: .88rem;
+    font-weight: 600;
+    color: var(--text-soft);
+}
+.hist-week-count {
+    font-size: .75rem;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.btn.disabled { opacity: .35; pointer-events: none; }
+
+/* botões de nav no fundo claro */
+.hist-nav .btn-ghost,
+.hist-week-nav .btn-ghost {
+    background: var(--surface-3);
+    color: var(--navy);
+    border: 1.5px solid var(--line);
+}
+
+/* ── Filtro de meses para o resumo ── */
+.hist-sel-panel {
+    display: none;
+    background: rgba(255,255,255,.08);
+    padding: .6rem .85rem .5rem;
+    border-top: 1px solid rgba(255,255,255,.15);
+}
+.hist-sel-panel.open { display: block; }
+.hist-sel-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem .7rem;
+    align-items: center;
+}
+.hist-sel-check {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    font-size: .8rem;
+    color: rgba(255,255,255,.85);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.hist-sel-check input[type=checkbox] { accent-color: var(--teal); cursor: pointer; }
+.hist-sel-actions { display: flex; gap: .35rem; margin-left: auto; }
+.hist-sel-actions .btn-ghost {
+    background: rgba(255,255,255,.1);
+    color: rgba(255,255,255,.8);
+    border-color: rgba(255,255,255,.25);
+    font-size: .75rem;
+    padding: .2rem .55rem;
+}
+/* botão no grid */
+.metric-sel-btn {
+    background: rgba(255,255,255,.08);
+    border: 1px dashed rgba(255,255,255,.35);
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: background .15s;
+    grid-column: span 2;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+.metric-sel-btn:hover { background: rgba(255,255,255,.16); }
+.metric-sel-btn.active { border-color: var(--teal); background: rgba(45,196,180,.12); }
+.metric-sel-btn strong { font-size: .95rem; }
 </style>
+
+<script>
+(function () {
+    var panel = document.getElementById('sel-panel');
+    var btn   = document.getElementById('toggle-sel');
+    var form  = document.getElementById('sel-form');
+    if (!panel || !btn || !form) return;
+
+    btn.addEventListener('click', function () {
+        panel.classList.toggle('open');
+        btn.classList.toggle('active', panel.classList.contains('open'));
+    });
+
+    function submit() {
+        var cbs = form.querySelectorAll('input[type=checkbox]');
+        var checked = Array.from(cbs).filter(function(c){ return c.checked; }).map(function(c){ return c.value; });
+        var url = new URL(window.location.href);
+        url.searchParams.delete('week');
+        if (checked.length === 0 || checked.length === cbs.length) {
+            url.searchParams.delete('sel');
+        } else {
+            url.searchParams.set('sel', checked.join(','));
+        }
+        window.location.href = url.toString();
+    }
+
+    form.querySelectorAll('input[type=checkbox]').forEach(function(cb) {
+        cb.addEventListener('change', submit);
+    });
+    document.getElementById('sel-all').addEventListener('click', function () {
+        form.querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked = true; });
+        submit();
+    });
+    document.getElementById('sel-none').addEventListener('click', function () {
+        form.querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
+        submit();
+    });
+})();
+</script>
 
 {% endblock %}

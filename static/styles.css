@@ -215,11 +215,25 @@ body {
     color: #fff;
 }
 
-.metric-value {
-    border-color: rgba(255,220,60,.45);
-    background: rgba(255,220,60,.12);
+.metric-add {
+    border-color: rgba(74,222,128,.4);
+    background: rgba(74,222,128,.10);
 }
-.metric-value strong { color: #ffe44d; }
+.metric-add strong { color: #4ade80; }
+
+.metric-sub {
+    border-color: rgba(248,113,113,.4);
+    background: rgba(248,113,113,.10);
+}
+.metric-sub strong { color: #f87171; }
+
+.metric-neutral strong { color: #ffe44d; }
+
+.metric-value {
+    border-color: rgba(74,222,128,.45);
+    background: rgba(74,222,128,.12);
+}
+.metric-value strong { color: #4ade80; }
 
 .daily-rate-form {
     margin-top: 0.6rem;
@@ -255,6 +269,57 @@ body {
 /* =========================================================
    PAINÃ‰IS
    ========================================================= */
+/* ── Painel Admin ── */
+.admin-panel {
+    max-width: var(--max-w);
+    margin: 1rem auto;
+    padding: 1rem 1.25rem 1.25rem;
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    border: 2px solid var(--navy);
+}
+.admin-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .4rem;
+    margin-bottom: 1rem;
+    padding-bottom: .6rem;
+    border-bottom: 1px solid var(--line);
+}
+.admin-panel-title {
+    font-size: .85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--navy);
+}
+.admin-panel-month {
+    font-size: .8rem;
+    color: var(--muted);
+    font-weight: 600;
+}
+.admin-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-bottom: 1rem;
+}
+.admin-entry-block {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+}
+.admin-entry-title {
+    font-size: .85rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin: 0 0 .65rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
 .panel-grid {
     display: flex;
     flex-direction: column;
@@ -816,12 +881,14 @@ details summary::-webkit-details-marker { display: none; }
 }
 
 .hist-content {
-    max-width: var(--max-w);
-    margin: 1.5rem auto;
-    padding: 0 var(--page-px);
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 0;
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--line);
+    overflow: hidden;
+    margin-top: 1rem;
 }
 
 .hist-month {
@@ -869,14 +936,36 @@ details summary::-webkit-details-marker { display: none; }
 .mstat.net { background: #dbeafe; color: var(--navy); }
 
 /* tabela dentro do histórico (o reset global esconde <table>) */
-.hist-month table {
+.hist-month table,
+.hist-content table,
+.ponto-section table,
+.card table {
     display: table;
     width: 100%;
     border-collapse: collapse;
 }
 
-.hist-month thead { background: var(--bg); }
-.hist-month th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: .04em; }
-.hist-month td, .hist-month th { padding: 0.6rem 1rem; border-bottom: 1px solid var(--line); }
-.hist-month tbody tr:last-child td { border-bottom: none; }
-.hist-month tbody tr:hover { background: var(--surface-hover, rgba(0,0,0,.03)); }
+.hist-month thead,
+.hist-content thead,
+.ponto-section thead,
+.card thead { background: var(--bg); }
+
+.hist-month th,
+.hist-content th,
+.ponto-section th,
+.card th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: .04em; }
+
+.hist-month td, .hist-month th,
+.hist-content td, .hist-content th,
+.ponto-section td, .ponto-section th,
+.card td, .card th { padding: 0.6rem 1rem; border-bottom: 1px solid var(--line); }
+
+.hist-month tbody tr:last-child td,
+.hist-content tbody tr:last-child td,
+.ponto-section tbody tr:last-child td,
+.card tbody tr:last-child td { border-bottom: none; }
+
+.hist-month tbody tr:hover,
+.hist-content tbody tr:hover,
+.ponto-section tbody tr:hover,
+.card tbody tr:hover { background: var(--surface-hover, rgba(0,0,0,.03)); }

@@ -89,6 +89,16 @@ def hhmm_filter(value: Any) -> str:
         return str(value)
 
 
+@app.template_filter("mask_cpf")
+def mask_cpf_filter(cpf: Any) -> str:
+    """Mascara CPF para exibição pública: 00x.xxx.xxx-00."""
+    import re as _re
+    digits = _re.sub(r"\D", "", str(cpf or ""))
+    if len(digits) != 11:
+        return str(cpf) if cpf else "—"
+    return f"{digits[0:2]}x.xxx.xxx-{digits[9:11]}"
+
+
 class User(Base, UserMixin):
     """Usuario administrador para operacoes de escrita."""
 
@@ -872,11 +882,85 @@ def collaborator_history(collaborator_id: int):
         .all()
     )
 
-    # totais globais
+    # agrupar por mes (ano-mes)
+    months_dict: dict[str, list] = defaultdict(list)
+    for e in all_entries:
+        key = f"{e.entry_date.year}-{e.entry_date.month:02d}"
+        months_dict[key].append(e)
+    all_month_keys = sorted(months_dict.keys(), reverse=True)
+
+    # Mes selecionado (paginacao de mes via ?month=YYYY-MM)
+    sel_month_key = request.args.get("month", "")
+    if not sel_month_key or sel_month_key not in months_dict:
+        sel_month_key = all_month_keys[0] if all_month_keys else None
+
+    if sel_month_key and sel_month_key in all_month_keys:
+        m_idx = all_month_keys.index(sel_month_key)
+        prev_month_key = all_month_keys[m_idx + 1] if m_idx + 1 < len(all_month_keys) else None
+        next_month_key = all_month_keys[m_idx - 1] if m_idx > 0 else None
+        y, mo = int(sel_month_key.split("-")[0]), int(sel_month_key.split("-")[1])
+        sel_month_label = f"{calendar.month_name[mo]} {y}"
+    else:
+        prev_month_key = next_month_key = None
+        sel_month_label = ""
+
+    # Semanas dentro do mes selecionado (agrupadas por semana ISO, desc)
+    month_entries_all = months_dict.get(sel_month_key, []) if sel_month_key else []
+    weeks: list[dict] = []
+    if month_entries_all:
+        week_groups: dict = {}
+        for e in month_entries_all:
+            iso_year, iso_week, _ = e.entry_date.isocalendar()
+            wk_key = (iso_year, iso_week)
+            week_groups.setdefault(wk_key, []).append(e)
+        for wk_key in sorted(week_groups.keys(), reverse=True):
+            wk_entries = week_groups[wk_key]
+            dates = [e.entry_date for e in wk_entries]
+            d_min, d_max = min(dates), max(dates)
+            weeks.append({
+                "entries": wk_entries,
+                "label": f"{d_min.strftime('%d/%m')} – {d_max.strftime('%d/%m')}",
+            })
+
+    sel_week_idx = 0
+    try:
+        sel_week_idx = int(request.args.get("week", 0))
+    except (ValueError, TypeError):
+        pass
+    sel_week_idx = max(0, min(sel_week_idx, len(weeks) - 1)) if weeks else 0
+    week_data = weeks[sel_week_idx] if weeks else {"entries": [], "label": ""}
+    prev_week = sel_week_idx + 1 if sel_week_idx + 1 < len(weeks) else None
+    next_week = sel_week_idx - 1 if sel_week_idx > 0 else None
+
+    # Totais do mes inteiro (para exibir no header do mes)
+    month_pos = Decimal("0")
+    month_neg = Decimal("0")
+    for e in month_entries_all:
+        v = Decimal(e.hours)
+        if v >= 0:
+            month_pos += v
+        else:
+            month_neg += abs(v)
+
+    # Totais globais (hero) — filtrados pelo ?sel= se presente
+    sel_param = request.args.get("sel", "")
+    if sel_param:
+        sel_keys = set(sel_param.split(",")) & set(all_month_keys)
+        if not sel_keys:
+            sel_keys = set(all_month_keys)
+    else:
+        sel_keys = set(all_month_keys)
+    sel_is_all = (sel_keys == set(all_month_keys))
+
     total_pos = Decimal("0")
     total_neg = Decimal("0")
+    total_count = 0
     for e in all_entries:
+        key = f"{e.entry_date.year}-{e.entry_date.month:02d}"
+        if key not in sel_keys:
+            continue
         v = Decimal(e.hours)
+        total_count += 1
         if v >= 0:
             total_pos += v
         else:
@@ -884,27 +968,12 @@ def collaborator_history(collaborator_id: int):
     total_net = total_pos - total_neg
     total_days = int(max(total_net, Decimal("0")) * 60 // 440)
 
-    # agrupar por mes (ano-mes)
-    months_dict: dict[str, list] = defaultdict(list)
-    for e in all_entries:
-        key = f"{e.entry_date.year}-{e.entry_date.month:02d}"
-        months_dict[key].append(e)
-    months = [
-        {
-            "label": f"{calendar.month_name[int(k.split('-')[1])]} "
-                     f"{k.split('-')[0]}",
-            "key": k,
-            "entries": v,
-        }
-        for k, v in sorted(months_dict.items(), reverse=True)
-    ]
-
     totals_global = {
         "positive": total_pos,
         "negative": total_neg,
         "net": total_net,
         "days": total_days,
-        "count": len(all_entries),
+        "count": total_count,
     }
 
     global_daily_rate = Decimal(get_setting("daily_rate", "0"))
@@ -922,11 +991,24 @@ def collaborator_history(collaborator_id: int):
     return render_template(
         "collab_history.html",
         collab=collab,
-        months=months,
         totals=totals_global,
         collab_daily_rate=collab_daily_rate,
         total_value=total_value,
         today=date.today().isoformat(),
+        all_month_keys=all_month_keys,
+        sel_keys=sel_keys,
+        sel_is_all=sel_is_all,
+        sel_month_key=sel_month_key,
+        sel_month_label=sel_month_label,
+        prev_month_key=prev_month_key,
+        next_month_key=next_month_key,
+        weeks=weeks,
+        week_data=week_data,
+        sel_week_idx=sel_week_idx,
+        prev_week=prev_week,
+        next_week=next_week,
+        month_pos=month_pos,
+        month_neg=month_neg,
     )
 
 
@@ -1341,23 +1423,45 @@ def _allowed_image(filename: str) -> bool:
 @app.get("/ponto")
 def ponto():
     """Exibe a pagina de registro de ponto eletronico via foto."""
-    records = (
+    _PER_PAGE = 10
+    page = request.args.get("page", 1, type=int)
+
+    total_count = PunchRecord.query.count()
+    linked_count = PunchRecord.query.filter(PunchRecord.collaborator_id.isnot(None)).count()
+    pending_count = total_count - linked_count
+
+    pending_records = (
+        PunchRecord.query
+        .filter(PunchRecord.collaborator_id.is_(None))
+        .order_by(PunchRecord.punch_date.desc(), PunchRecord.punch_time.desc(), PunchRecord.id.desc())
+        .all()
+    )
+
+    pagination = (
         PunchRecord.query
         .order_by(
             PunchRecord.punch_date.desc(),
             PunchRecord.punch_time.desc(),
             PunchRecord.id.desc(),
         )
-        .limit(200)
-        .all()
+        .paginate(page=page, per_page=_PER_PAGE, error_out=False)
     )
+
     collaborators = (
         Collaborator.query
         .filter_by(active=True)
         .order_by(Collaborator.name.asc())
         .all()
     )
-    return render_template("ponto.html", records=records, collaborators=collaborators)
+    return render_template(
+        "ponto.html",
+        total_count=total_count,
+        linked_count=linked_count,
+        pending_count=pending_count,
+        pending_records=pending_records,
+        pagination=pagination,
+        collaborators=collaborators,
+    )
 
 
 @app.get("/ponto/camera")
