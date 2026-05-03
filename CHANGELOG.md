@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.1] - 2026-05-02
+- fix: nome do mês exibido em PT-BR ("Maio" em vez de "May").
+- feat: seletor de meses do resumo reformulado — botões coloridos clicáveis (verde = incluso, vermelho = excluído) sem checkboxes.
+- fix: botões de navegação de mês e semana agora com fundo navy sólido, visíveis em fundo claro.
+- chore: CHANGELOG retroativo com entradas de v0.6.0, v0.7.0 e v0.8.0.
+
 ## [0.9.0] - 2026-05-02
 - feat: painel administrativo dedicado no index — exportar PDF, enviar WhatsApp, arquivar mês, definir diária e lançar horas em bloco único visível apenas para admin.
 - feat: botão "Exportar PDF" movido para fora do painel admin — disponível para qualquer visitante.

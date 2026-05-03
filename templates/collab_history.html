@@ -31,20 +31,21 @@
     </div>
     {% if all_month_keys|length > 1 %}
     <div id="sel-panel" class="hist-sel-panel{% if not sel_is_all %} open{% endif %}">
-        <form id="sel-form" method="get" class="hist-sel-form">
-            {% if sel_month_key %}<input type="hidden" name="month" value="{{ sel_month_key }}">{% endif %}
-            {% for k in all_month_keys %}
-            {% set y, mo = k.split('-') %}
-            <label class="hist-sel-check">
-                <input type="checkbox" name="sel_cb" value="{{ k }}" {% if k in sel_keys %}checked{% endif %}>
-                {{ mo }}/{{ y }}
-            </label>
-            {% endfor %}
-            <div class="hist-sel-actions">
-                <button type="button" id="sel-all" class="btn btn-ghost btn-sm">Todos</button>
-                <button type="button" id="sel-none" class="btn btn-ghost btn-sm">Nenhum</button>
-            </div>
-        </form>
+        {% if sel_month_key %}<input type="hidden" id="sel-month-hidden" value="{{ sel_month_key }}">{% endif %}
+        <div class="hist-sel-months" id="sel-months">
+        {% set meses_abrev = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'] %}
+        {% for k in all_month_keys %}
+        {% set parts = k.split('-') %}
+        {% set mo_num = parts[1]|int %}
+        <button type="button" class="sel-month-btn {% if k in sel_keys %}sel-on{% else %}sel-off{% endif %}" data-key="{{ k }}">
+            {{ meses_abrev[mo_num] }}/{{ parts[0][2:] }}
+        </button>
+        {% endfor %}
+        </div>
+        <div class="hist-sel-actions">
+            <button type="button" id="sel-all" class="sel-action-btn">Todos</button>
+            <button type="button" id="sel-none" class="sel-action-btn">Nenhum</button>
+        </div>
     </div>
     {% endif %}
     <div class="hero-metrics">
@@ -255,6 +256,21 @@
     flex: 1;
     text-align: center;
 }
+.hist-nav .btn-ghost {
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    font-size: .85rem;
+    padding: .35rem .75rem;
+    border-radius: var(--radius);
+}
+.hist-nav .btn-ghost.disabled {
+    background: var(--surface-3);
+    color: var(--muted);
+    opacity: .5;
+}
+
+.btn.disabled { opacity: .35; pointer-events: none; }
 
 /* ── Stats do mês ── */
 .hist-month-stats-bar {
@@ -280,24 +296,29 @@
 .hist-week-label {
     flex: 1;
     text-align: center;
-    font-size: .88rem;
-    font-weight: 600;
-    color: var(--text-soft);
+    font-size: .9rem;
+    font-weight: 700;
+    color: var(--navy);
 }
 .hist-week-count {
     font-size: .75rem;
     color: var(--muted);
     white-space: nowrap;
 }
-
-.btn.disabled { opacity: .35; pointer-events: none; }
-
-/* botões de nav no fundo claro */
-.hist-nav .btn-ghost,
 .hist-week-nav .btn-ghost {
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    font-size: 1rem;
+    padding: .35rem .8rem;
+    border-radius: var(--radius);
+    min-width: 2.4rem;
+    text-align: center;
+}
+.hist-week-nav .btn-ghost.disabled {
     background: var(--surface-3);
-    color: var(--navy);
-    border: 1.5px solid var(--line);
+    color: var(--muted);
+    opacity: .5;
 }
 
 /* ── Filtro de meses para o resumo ── */
@@ -308,30 +329,46 @@
     border-top: 1px solid rgba(255,255,255,.15);
 }
 .hist-sel-panel.open { display: block; }
-.hist-sel-form {
+.hist-sel-months {
     display: flex;
     flex-wrap: wrap;
-    gap: .35rem .7rem;
-    align-items: center;
+    gap: .35rem;
+    margin-bottom: .4rem;
 }
-.hist-sel-check {
-    display: flex;
-    align-items: center;
-    gap: .3rem;
-    font-size: .8rem;
-    color: rgba(255,255,255,.85);
+.sel-month-btn {
+    font-family: inherit;
+    font-size: .82rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 6px;
+    padding: .25rem .6rem;
     cursor: pointer;
-    white-space: nowrap;
+    transition: opacity .15s, transform .1s;
+    letter-spacing: .02em;
 }
-.hist-sel-check input[type=checkbox] { accent-color: var(--teal); cursor: pointer; }
-.hist-sel-actions { display: flex; gap: .35rem; margin-left: auto; }
-.hist-sel-actions .btn-ghost {
-    background: rgba(255,255,255,.1);
-    color: rgba(255,255,255,.8);
-    border-color: rgba(255,255,255,.25);
+.sel-month-btn:active { transform: scale(.94); }
+.sel-month-btn.sel-on {
+    background: rgba(74,222,128,.28);
+    color: #a3ffca;
+    box-shadow: 0 0 0 1.5px rgba(74,222,128,.55);
+}
+.sel-month-btn.sel-off {
+    background: rgba(248,113,113,.22);
+    color: #ffb3b3;
+    box-shadow: 0 0 0 1.5px rgba(248,113,113,.45);
+}
+.hist-sel-actions { display: flex; gap: .4rem; }
+.sel-action-btn {
+    font-family: inherit;
     font-size: .75rem;
+    background: rgba(255,255,255,.12);
+    color: rgba(255,255,255,.75);
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 5px;
     padding: .2rem .55rem;
+    cursor: pointer;
 }
+.sel-action-btn:hover { background: rgba(255,255,255,.2); }
 /* botão no grid */
 .metric-sel-btn {
     background: rgba(255,255,255,.08);
@@ -353,39 +390,46 @@
 
 <script>
 (function () {
-    var panel = document.getElementById('sel-panel');
-    var btn   = document.getElementById('toggle-sel');
-    var form  = document.getElementById('sel-form');
-    if (!panel || !btn || !form) return;
+    var panel  = document.getElementById('sel-panel');
+    var toggle = document.getElementById('toggle-sel');
+    if (toggle && panel) {
+        toggle.addEventListener('click', function () {
+            panel.classList.toggle('open');
+            toggle.classList.toggle('active', panel.classList.contains('open'));
+        });
+    }
 
-    btn.addEventListener('click', function () {
-        panel.classList.toggle('open');
-        btn.classList.toggle('active', panel.classList.contains('open'));
-    });
+    var monthHidden = document.getElementById('sel-month-hidden');
+    var btns = document.querySelectorAll('.sel-month-btn');
+    if (!btns.length) return;
 
-    function submit() {
-        var cbs = form.querySelectorAll('input[type=checkbox]');
-        var checked = Array.from(cbs).filter(function(c){ return c.checked; }).map(function(c){ return c.value; });
+    function navigate() {
+        var on = Array.from(btns).filter(function(b){ return b.classList.contains('sel-on'); }).map(function(b){ return b.dataset.key; });
         var url = new URL(window.location.href);
         url.searchParams.delete('week');
-        if (checked.length === 0 || checked.length === cbs.length) {
+        if (on.length === 0 || on.length === btns.length) {
             url.searchParams.delete('sel');
         } else {
-            url.searchParams.set('sel', checked.join(','));
+            url.searchParams.set('sel', on.join(','));
         }
         window.location.href = url.toString();
     }
 
-    form.querySelectorAll('input[type=checkbox]').forEach(function(cb) {
-        cb.addEventListener('change', submit);
+    btns.forEach(function(b) {
+        b.addEventListener('click', function () {
+            b.classList.toggle('sel-on');
+            b.classList.toggle('sel-off');
+            navigate();
+        });
     });
+
     document.getElementById('sel-all').addEventListener('click', function () {
-        form.querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked = true; });
-        submit();
+        btns.forEach(function(b){ b.classList.add('sel-on'); b.classList.remove('sel-off'); });
+        navigate();
     });
     document.getElementById('sel-none').addEventListener('click', function () {
-        form.querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
-        submit();
+        btns.forEach(function(b){ b.classList.add('sel-off'); b.classList.remove('sel-on'); });
+        navigate();
     });
 })();
 </script>

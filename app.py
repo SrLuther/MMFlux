@@ -13,6 +13,10 @@ import uuid
 from typing import Any, ClassVar, cast
 
 import calendar
+
+MESES_PT = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+
 from functools import wraps
 from flask import (
     Flask,
@@ -899,7 +903,7 @@ def collaborator_history(collaborator_id: int):
         prev_month_key = all_month_keys[m_idx + 1] if m_idx + 1 < len(all_month_keys) else None
         next_month_key = all_month_keys[m_idx - 1] if m_idx > 0 else None
         y, mo = int(sel_month_key.split("-")[0]), int(sel_month_key.split("-")[1])
-        sel_month_label = f"{calendar.month_name[mo]} {y}"
+        sel_month_label = f"{MESES_PT[mo]} {y}"
     else:
         prev_month_key = next_month_key = None
         sel_month_label = ""
