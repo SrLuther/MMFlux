@@ -34,15 +34,15 @@
         </div>
         <div class="metric">
             <span>H Bruto</span>
-            <strong>{{ '%.1f'|format(totals.positive) }}h</strong>
+            <strong>{{ totals.positive|hhmm }}</strong>
         </div>
         <div class="metric">
             <span>H Descontos</span>
-            <strong>{{ '%.1f'|format(totals.negative) }}h</strong>
+            <strong>{{ totals.negative|hhmm }}</strong>
         </div>
         <div class="metric">
             <span>H Liquido</span>
-            <strong>{{ '%.1f'|format(totals.net) }}h</strong>
+            <strong>{{ totals.net|hhmm }}</strong>
         </div>
         <div class="metric">
             <span>Dias completos</span>
@@ -80,9 +80,9 @@
                     <span>{{ item.role }}</span>
                 </header>
                 <dl>
-                    <div><dt>H Bruto</dt><dd>{{ '%.1f'|format(item.positive) }}h</dd></div>
-                    <div><dt>H Descontos</dt><dd>{{ '%.1f'|format(item.negative) }}h</dd></div>
-                    <div><dt>H Liquido</dt><dd>{{ '%.1f'|format(item.net) }}h</dd></div>
+                    <div><dt>H Bruto</dt><dd>{{ item.positive|hhmm }}</dd></div>
+                    <div><dt>H Descontos</dt><dd>{{ item.negative|hhmm }}</dd></div>
+                    <div><dt>H Liquido</dt><dd>{{ item.net|hhmm }}</dd></div>
                     <div><dt>Dias</dt><dd>{{ item.days }}</dd></div>
                 </dl>
             </div>
