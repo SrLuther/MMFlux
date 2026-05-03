@@ -1,278 +1,278 @@
-﻿{% extends 'base.html' %}
-{% block title %}C├ómera de Ponto ┬À MultiMax{% endblock %}
-
-{% block content %}
-<div class="cam-page">
-
-    <!-- Cabe├ºalho -->
-    <div class="cam-header">
-        <a class="btn btn-ghost cam-back" href="{{ url_for('ponto') }}">&#8592; Voltar</a>
-        <h2 class="cam-title">&#128247; Captura de Ponto</h2>
-        <p class="cam-subtitle" id="cam-subtitle">Iniciando c├ómeraÔÇª</p>
-    </div>
-
-    <!-- ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
-         MODO A: c├ómera ao vivo (HTTPS / localhost)
-         ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ -->
-    <div id="mode-live" style="display:none; width:100%; max-width:480px;">
-
-        <div class="cam-viewport" id="cam-viewport">
-            <video id="cam-video" autoplay playsinline muted></video>
-            <canvas id="cam-canvas" style="display:none"></canvas>
-
-            <div class="cam-guide" id="cam-guide">
-                <div class="cam-guide-corner tl"></div>
-                <div class="cam-guide-corner tr"></div>
-                <div class="cam-guide-corner bl"></div>
-                <div class="cam-guide-corner br"></div>
-            </div>
-
-            <div class="cam-flash" id="cam-flash"></div>
-            <div class="cam-msg" id="cam-msg">Aponte para o comprovante e pressione Capturar</div>
-        </div>
-
-        <div class="cam-controls">
-            <button class="btn cam-btn-primary" id="btn-cap-now">&#128247; Capturar agora</button>
-        </div>
-    </div>
-
-    <!-- ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
-         MODO B: fallback nativo (HTTP sem c├ómera API)
-         ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ -->
-    <div id="mode-native" style="display:none; width:100%; max-width:420px;">
-
-        <div class="native-card" id="native-card">
-            <div class="native-icon">&#128247;</div>
-            <p class="native-title">Fotografe o comprovante</p>
-            <p class="native-desc">
-                Enquadre o cupom inteiro na foto.<br>
-                O OCR ser├í processado automaticamente.
-            </p>
-            <!-- form com name="foto" ÔÇö submit direto, sem DataTransfer (iOS Safari) -->
-            <form id="native-form" method="post"
-                  action="{{ url_for('ponto_upload') }}"
-                  enctype="multipart/form-data">
-                <label class="btn cam-btn-primary native-btn" for="native-file-input">
-                    &#128247; Abrir c├ómera
-                </label>
-                <input id="native-file-input" type="file" name="foto"
-                       accept="image/*" capture="environment"
-                       style="display:none">
-            </form>
-            <div class="native-spinner" id="native-spinner" style="display:none">
-                <div class="spinner"></div>
-                <span>AnalisandoÔÇª</span>
-            </div>
-        </div>
-
-    </div>
-
-</div>
-
-<style>
-.cam-page {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem var(--page-px) 3rem;
-    max-width: 540px;
-    margin: 0 auto;
-}
-.cam-header { text-align: center; width: 100%; }
-.cam-back {
-    display: inline-block; margin-bottom: .5rem;
-    background: var(--surface);
-    color: var(--navy);
-    border: 1.5px solid var(--navy);
-}
-.cam-back:hover { background: var(--surface-3); filter: none; }
-.cam-title { font-size: 1.3rem; font-weight: 700; margin: .1rem 0; }
-#cam-subtitle { color: var(--muted); font-size: .9rem; margin: 0; }
-
-/* ÔöÇÔöÇ Viewport ÔöÇÔöÇ */
-.cam-viewport {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 3/4;
-    background: #111;
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    box-shadow: 0 4px 24px #0006;
-}
-#cam-video { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-/* ÔöÇÔöÇ Guia ÔöÇÔöÇ */
-.cam-guide { position: absolute; inset: 8%; pointer-events: none; }
-.cam-guide-corner {
-    position: absolute; width: 26px; height: 26px;
-    border-color: rgba(255,255,255,.8); border-style: solid;
-    transition: border-color .4s;
-}
-.cam-guide-corner.tl { top:0; left:0;  border-width:3px 0 0 3px; border-radius:4px 0 0 0; }
-.cam-guide-corner.tr { top:0; right:0; border-width:3px 3px 0 0; border-radius:0 4px 0 0; }
-.cam-guide-corner.bl { bottom:0; left:0;  border-width:0 0 3px 3px; border-radius:0 0 0 4px; }
-.cam-guide-corner.br { bottom:0; right:0; border-width:0 3px 3px 0; border-radius:0 0 4px 0; }
-.cam-guide-corner.ok { border-color: #4caf50; }
-
-/* ÔöÇÔöÇ Status ÔöÇÔöÇ */
-.cam-status-overlay {
-    position: absolute; bottom: 56px; left: 8px; right: 8px;
-    background: rgba(0,0,0,.62); border-radius: 10px;
-    padding: .5rem .75rem; display: flex; flex-direction: column; gap: .28rem;
-    backdrop-filter: blur(4px);
-}
-.cam-status-row {
-    display: flex; align-items: center; gap: .5rem;
-    font-size: .82rem; color: #ccc; transition: color .3s;
-}
-.cam-status-row.found { color: #7effa0; }
-.cam-status-icon { width: 1.1rem; text-align: center; }
-.cam-status-label { font-weight: 600; width: 2.8rem; }
-.cam-status-val { flex:1; font-family: monospace; font-size: .78rem; opacity: .85; }
-
-/* ÔöÇÔöÇ Flash / countdown / msg ÔöÇÔöÇ */
-.cam-flash {
-    position: absolute; inset: 0; background: white; opacity: 0;
-    pointer-events: none; transition: opacity .05s;
-}
-.cam-flash.active { opacity: 1; }
-.cam-countdown {
-    position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 5rem; font-weight: 900; color: #4caf50;
-    text-shadow: 0 2px 12px #000a;
-    animation: pulse-cd .85s ease-in-out infinite;
-}
-@keyframes pulse-cd {
-    0%,100% { transform: scale(1); }
-    50%      { transform: scale(1.12); }
-}
-.cam-msg {
-    position: absolute; top: 8px; left: 0; right: 0;
-    text-align: center; font-size: .8rem; font-weight: 600;
-    color: rgba(255,255,255,.9); text-shadow: 0 1px 4px #000;
-    pointer-events: none;
-}
-
-/* ÔöÇÔöÇ Controles ÔöÇÔöÇ */
-.cam-controls { width: 100%; display: flex; justify-content: center; }
-.cam-btn-primary {
-    background: var(--teal); color: #fff; border: none;
-    padding: .7rem 2rem; font-size: 1rem; font-weight: 700;
-    border-radius: var(--radius); cursor: pointer;
-    transition: background .15s, transform .1s;
-}
-.cam-btn-primary:hover { background: var(--teal-dark); }
-.cam-btn-primary:active { transform: scale(.97); }
-
-/* ÔöÇÔöÇ Modo nativo ÔöÇÔöÇ */
-.native-card {
-    background: var(--surface); border-radius: var(--radius-lg);
-    box-shadow: var(--shadow); padding: 2.5rem 1.5rem;
-    text-align: center; display: flex; flex-direction: column;
-    align-items: center; gap: 1rem; width: 100%;
-}
-.native-icon { font-size: 4rem; line-height: 1; }
-.native-title { font-size: 1.2rem; font-weight: 700; margin: 0; }
-.native-desc { color: var(--muted); font-size: .9rem; margin: 0; line-height: 1.6; }
-.native-btn { display: inline-block; width: 100%; max-width: 260px; text-align: center; }
-.native-spinner {
-    display: flex; align-items: center; gap: .75rem;
-    color: var(--muted); font-size: .9rem; margin-top: .5rem;
-}
-.spinner {
-    width: 22px; height: 22px;
-    border: 3px solid var(--border); border-top-color: var(--teal);
-    border-radius: 50%; animation: spin .7s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-</style>
-
-<script>
-(function () {
-    const subtitle   = document.getElementById('cam-subtitle');
-    const modeLive   = document.getElementById('mode-live');
-    const modeNative = document.getElementById('mode-native');
-
-    /* ÔöÇÔöÇ Detecta se c├ómera API est├í dispon├¡vel ÔöÇÔöÇ */
-    const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-    const hasMediaDevices = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-
-    if (isSecure && hasMediaDevices) {
-        startLiveMode();
-    } else {
-        startNativeMode();
-    }
-
-    /* ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
-       MODO A ÔÇö c├ómera ao vivo
-    ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ */
-    function startLiveMode() {
-        modeLive.style.display = 'block';
-        subtitle.textContent = 'Enquadre o comprovante e capture';
-
-        const video  = document.getElementById('cam-video');
-        const canvas = document.getElementById('cam-canvas');
-        const flash  = document.getElementById('cam-flash');
-        const btnCap = document.getElementById('btn-cap-now');
-        const msg    = document.getElementById('cam-msg');
-
-        navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 } }
-        }).then(stream => {
-            video.srcObject = stream;
-            msg.textContent = 'Aponte para o comprovante e pressione Capturar';
-        }).catch(() => {
-            modeLive.style.display = 'none';
-            startNativeMode();
-        });
-
-        function capture() {
-            canvas.width  = video.videoWidth  || 1280;
-            canvas.height = video.videoHeight || 960;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            flash.classList.add('active');
-            setTimeout(() => flash.classList.remove('active'), 80);
-            btnCap.disabled = true;
-            btnCap.textContent = 'ProcessandoÔÇª';
-            canvas.toBlob(blob => submitBlob(blob), 'image/jpeg', 0.95);
-        }
-
-        btnCap.addEventListener('click', capture);
-    }
-
-    /* ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
-       MODO B ÔÇö input nativo (HTTP)
-    ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ */
-    function startNativeMode() {
-        modeNative.style.display = 'block';
-        subtitle.textContent = 'Tire uma foto do comprovante';
-
-        const inp     = document.getElementById('native-file-input');
-        const spinner = document.getElementById('native-spinner');
-        const card    = document.getElementById('native-card');
-
-        inp.addEventListener('change', () => {
-            if (!inp.files || !inp.files[0]) return;
-            card.querySelectorAll('.native-icon,.native-title,.native-desc,.native-btn').forEach(el => el.style.opacity = '.3');
-            spinner.style.display = 'flex';
-            subtitle.textContent = 'Processando OCRÔÇª';
-            // submit direto do form ÔÇö sem DataTransfer, funciona no iOS Safari
-            document.getElementById('native-form').submit();
-        });
-    }
-
-    /* ÔöÇÔöÇ Envio para modo live (blob de canvas ÔåÆ fetch + FormData) ÔöÇÔöÇ */
-    function submitBlob(blob) {
-        const fd = new FormData();
-        fd.append('foto', blob, 'ponto.jpg');
-        fetch('{{ url_for("ponto_upload") }}', { method: 'POST', body: fd })
-            .then(r => r.text())
-            .then(html => { document.open(); document.write(html); document.close(); })
-            .catch(() => { window.location.href = '{{ url_for("ponto") }}'; });
-    }
-})();
-</script>
-
-{% endblock %}
+{% extends 'base.html' %}
+{% block title %}Câmera de Ponto · MultiMax{% endblock %}
+
+{% block content %}
+<div class="cam-page">
+
+    <!-- Cabeçalho -->
+    <div class="cam-header">
+        <a class="btn btn-ghost cam-back" href="{{ url_for('ponto') }}">&#8592; Voltar</a>
+        <h2 class="cam-title">&#128247; Captura de Ponto</h2>
+        <p class="cam-subtitle" id="cam-subtitle">Iniciando câmera…</p>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         MODO A: câmera ao vivo (HTTPS / localhost)
+         ══════════════════════════════════════════════════ -->
+    <div id="mode-live" style="display:none; width:100%; max-width:480px;">
+
+        <div class="cam-viewport" id="cam-viewport">
+            <video id="cam-video" autoplay playsinline muted></video>
+            <canvas id="cam-canvas" style="display:none"></canvas>
+
+            <div class="cam-guide" id="cam-guide">
+                <div class="cam-guide-corner tl"></div>
+                <div class="cam-guide-corner tr"></div>
+                <div class="cam-guide-corner bl"></div>
+                <div class="cam-guide-corner br"></div>
+            </div>
+
+            <div class="cam-flash" id="cam-flash"></div>
+            <div class="cam-msg" id="cam-msg">Aponte para o comprovante e pressione Capturar</div>
+        </div>
+
+        <div class="cam-controls">
+            <button class="btn cam-btn-primary" id="btn-cap-now">&#128247; Capturar agora</button>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         MODO B: fallback nativo (HTTP sem câmera API)
+         ══════════════════════════════════════════════════ -->
+    <div id="mode-native" style="display:none; width:100%; max-width:420px;">
+
+        <div class="native-card" id="native-card">
+            <div class="native-icon">&#128247;</div>
+            <p class="native-title">Fotografe o comprovante</p>
+            <p class="native-desc">
+                Enquadre o cupom inteiro na foto.<br>
+                O OCR será processado automaticamente.
+            </p>
+            <!-- form com name="foto" — submit direto, sem DataTransfer (iOS Safari) -->
+            <form id="native-form" method="post"
+                  action="{{ url_for('ponto_upload') }}"
+                  enctype="multipart/form-data">
+                <label class="btn cam-btn-primary native-btn" for="native-file-input">
+                    &#128247; Abrir câmera
+                </label>
+                <input id="native-file-input" type="file" name="foto"
+                       accept="image/*" capture="environment"
+                       style="display:none">
+            </form>
+            <div class="native-spinner" id="native-spinner" style="display:none">
+                <div class="spinner"></div>
+                <span>Analisando…</span>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<style>
+.cam-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem var(--page-px) 3rem;
+    max-width: 540px;
+    margin: 0 auto;
+}
+.cam-header { text-align: center; width: 100%; }
+.cam-back {
+    display: inline-block; margin-bottom: .5rem;
+    background: var(--surface);
+    color: var(--navy);
+    border: 1.5px solid var(--navy);
+}
+.cam-back:hover { background: var(--surface-3); filter: none; }
+.cam-title { font-size: 1.3rem; font-weight: 700; margin: .1rem 0; }
+#cam-subtitle { color: var(--muted); font-size: .9rem; margin: 0; }
+
+/* ── Viewport ── */
+.cam-viewport {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3/4;
+    background: #111;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: 0 4px 24px #0006;
+}
+#cam-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ── Guia ── */
+.cam-guide { position: absolute; inset: 8%; pointer-events: none; }
+.cam-guide-corner {
+    position: absolute; width: 26px; height: 26px;
+    border-color: rgba(255,255,255,.8); border-style: solid;
+    transition: border-color .4s;
+}
+.cam-guide-corner.tl { top:0; left:0;  border-width:3px 0 0 3px; border-radius:4px 0 0 0; }
+.cam-guide-corner.tr { top:0; right:0; border-width:3px 3px 0 0; border-radius:0 4px 0 0; }
+.cam-guide-corner.bl { bottom:0; left:0;  border-width:0 0 3px 3px; border-radius:0 0 0 4px; }
+.cam-guide-corner.br { bottom:0; right:0; border-width:0 3px 3px 0; border-radius:0 0 4px 0; }
+.cam-guide-corner.ok { border-color: #4caf50; }
+
+/* ── Status ── */
+.cam-status-overlay {
+    position: absolute; bottom: 56px; left: 8px; right: 8px;
+    background: rgba(0,0,0,.62); border-radius: 10px;
+    padding: .5rem .75rem; display: flex; flex-direction: column; gap: .28rem;
+    backdrop-filter: blur(4px);
+}
+.cam-status-row {
+    display: flex; align-items: center; gap: .5rem;
+    font-size: .82rem; color: #ccc; transition: color .3s;
+}
+.cam-status-row.found { color: #7effa0; }
+.cam-status-icon { width: 1.1rem; text-align: center; }
+.cam-status-label { font-weight: 600; width: 2.8rem; }
+.cam-status-val { flex:1; font-family: monospace; font-size: .78rem; opacity: .85; }
+
+/* ── Flash / countdown / msg ── */
+.cam-flash {
+    position: absolute; inset: 0; background: white; opacity: 0;
+    pointer-events: none; transition: opacity .05s;
+}
+.cam-flash.active { opacity: 1; }
+.cam-countdown {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 5rem; font-weight: 900; color: #4caf50;
+    text-shadow: 0 2px 12px #000a;
+    animation: pulse-cd .85s ease-in-out infinite;
+}
+@keyframes pulse-cd {
+    0%,100% { transform: scale(1); }
+    50%      { transform: scale(1.12); }
+}
+.cam-msg {
+    position: absolute; top: 8px; left: 0; right: 0;
+    text-align: center; font-size: .8rem; font-weight: 600;
+    color: rgba(255,255,255,.9); text-shadow: 0 1px 4px #000;
+    pointer-events: none;
+}
+
+/* ── Controles ── */
+.cam-controls { width: 100%; display: flex; justify-content: center; }
+.cam-btn-primary {
+    background: var(--teal); color: #fff; border: none;
+    padding: .7rem 2rem; font-size: 1rem; font-weight: 700;
+    border-radius: var(--radius); cursor: pointer;
+    transition: background .15s, transform .1s;
+}
+.cam-btn-primary:hover { background: var(--teal-dark); }
+.cam-btn-primary:active { transform: scale(.97); }
+
+/* ── Modo nativo ── */
+.native-card {
+    background: var(--surface); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow); padding: 2.5rem 1.5rem;
+    text-align: center; display: flex; flex-direction: column;
+    align-items: center; gap: 1rem; width: 100%;
+}
+.native-icon { font-size: 4rem; line-height: 1; }
+.native-title { font-size: 1.2rem; font-weight: 700; margin: 0; }
+.native-desc { color: var(--muted); font-size: .9rem; margin: 0; line-height: 1.6; }
+.native-btn { display: inline-block; width: 100%; max-width: 260px; text-align: center; }
+.native-spinner {
+    display: flex; align-items: center; gap: .75rem;
+    color: var(--muted); font-size: .9rem; margin-top: .5rem;
+}
+.spinner {
+    width: 22px; height: 22px;
+    border: 3px solid var(--border); border-top-color: var(--teal);
+    border-radius: 50%; animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+<script>
+(function () {
+    const subtitle   = document.getElementById('cam-subtitle');
+    const modeLive   = document.getElementById('mode-live');
+    const modeNative = document.getElementById('mode-native');
+
+    /* ── Detecta se câmera API está disponível ── */
+    const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    const hasMediaDevices = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+    if (isSecure && hasMediaDevices) {
+        startLiveMode();
+    } else {
+        startNativeMode();
+    }
+
+    /* ══════════════════════════════════════════
+       MODO A — câmera ao vivo
+    ══════════════════════════════════════════ */
+    function startLiveMode() {
+        modeLive.style.display = 'block';
+        subtitle.textContent = 'Enquadre o comprovante e capture';
+
+        const video  = document.getElementById('cam-video');
+        const canvas = document.getElementById('cam-canvas');
+        const flash  = document.getElementById('cam-flash');
+        const btnCap = document.getElementById('btn-cap-now');
+        const msg    = document.getElementById('cam-msg');
+
+        navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 } }
+        }).then(stream => {
+            video.srcObject = stream;
+            msg.textContent = 'Aponte para o comprovante e pressione Capturar';
+        }).catch(() => {
+            modeLive.style.display = 'none';
+            startNativeMode();
+        });
+
+        function capture() {
+            canvas.width  = video.videoWidth  || 1280;
+            canvas.height = video.videoHeight || 960;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            flash.classList.add('active');
+            setTimeout(() => flash.classList.remove('active'), 80);
+            btnCap.disabled = true;
+            btnCap.textContent = 'Processando…';
+            canvas.toBlob(blob => submitBlob(blob), 'image/jpeg', 0.95);
+        }
+
+        btnCap.addEventListener('click', capture);
+    }
+
+    /* ══════════════════════════════════════════
+       MODO B — input nativo (HTTP)
+    ══════════════════════════════════════════ */
+    function startNativeMode() {
+        modeNative.style.display = 'block';
+        subtitle.textContent = 'Tire uma foto do comprovante';
+
+        const inp     = document.getElementById('native-file-input');
+        const spinner = document.getElementById('native-spinner');
+        const card    = document.getElementById('native-card');
+
+        inp.addEventListener('change', () => {
+            if (!inp.files || !inp.files[0]) return;
+            card.querySelectorAll('.native-icon,.native-title,.native-desc,.native-btn').forEach(el => el.style.opacity = '.3');
+            spinner.style.display = 'flex';
+            subtitle.textContent = 'Processando OCR…';
+            // submit direto do form — sem DataTransfer, funciona no iOS Safari
+            document.getElementById('native-form').submit();
+        });
+    }
+
+    /* ── Envio para modo live (blob de canvas → fetch + FormData) ── */
+    function submitBlob(blob) {
+        const fd = new FormData();
+        fd.append('foto', blob, 'ponto.jpg');
+        fetch('{{ url_for("ponto_upload") }}', { method: 'POST', body: fd })
+            .then(r => r.text())
+            .then(html => { document.open(); document.write(html); document.close(); })
+            .catch(() => { window.location.href = '{{ url_for("ponto") }}'; });
+    }
+})();
+</script>
+
+{% endblock %}
