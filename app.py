@@ -143,6 +143,7 @@ class HourEntry(Base):
     entry_date = db.Column(db.Date, nullable=False, index=True)
     hours = db.Column(db.Numeric(6, 2), nullable=False)
     note = db.Column(db.String(255), nullable=True)
+    archived = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(
         db.DateTime,
         default=datetime.utcnow,
@@ -265,6 +266,17 @@ def ensure_schema() -> None:
         )
         db.session.commit()
 
+    # hour_entry.archived (adicionado em v0.7.0)
+    he_cols = db.session.execute(
+        text("PRAGMA table_info(hour_entry)")
+    ).mappings().all()
+    he_col_names = {str(c["name"]) for c in he_cols}
+    if he_col_names and "archived" not in he_col_names:
+        db.session.execute(
+            text("ALTER TABLE hour_entry ADD COLUMN archived BOOLEAN NOT NULL DEFAULT 0")
+        )
+        db.session.commit()
+
 
 def suggest_ponto_password(name: str) -> str:
     """Sugere senha de ponto: 1a letra maiuscula + posicoes alfabeticas ate 4-5 digitos.
@@ -323,6 +335,7 @@ def monthly_summary(
         .filter(
             HourEntry.entry_date >= month_start,
             HourEntry.entry_date < month_end,
+            HourEntry.archived == False,  # noqa: E712
         )
         .order_by(HourEntry.entry_date.desc(), HourEntry.id.desc())
         .all()
@@ -773,6 +786,7 @@ def collaborator_history(collaborator_id: int):
     all_entries = (
         HourEntry.query
         .filter_by(collaborator_id=collaborator_id)
+        .filter(HourEntry.archived == False)  # noqa: E712
         .order_by(HourEntry.entry_date.desc(), HourEntry.id.desc())
         .all()
     )
@@ -832,6 +846,150 @@ def collaborator_history(collaborator_id: int):
         collab_daily_rate=collab_daily_rate,
         total_value=total_value,
     )
+
+
+# ---------------------------------------------------------------------------
+# Arquivo morto
+# ---------------------------------------------------------------------------
+
+@app.post("/archive/month")
+@login_required
+def archive_month():
+    """Arquiva todos os lançamentos de um mês (remove do painel ativo)."""
+    year, month = _parse_month_param(request.form.get("month"))
+    month_start = date(year, month, 1)
+    month_end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+    count = HourEntry.query.filter(
+        HourEntry.entry_date >= month_start,
+        HourEntry.entry_date < month_end,
+        HourEntry.archived == False,  # noqa: E712
+    ).update({"archived": True})
+    db.session.commit()
+    flash(f"{count} lançamentos de {month:02d}/{year} arquivados.", "success")
+    return redirect(url_for("index"))
+
+
+@app.post("/archive/month/restore")
+@login_required
+def restore_month():
+    """Restaura lançamentos arquivados de um mês para o painel ativo."""
+    year, month = _parse_month_param(request.form.get("month"))
+    month_start = date(year, month, 1)
+    month_end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+    count = HourEntry.query.filter(
+        HourEntry.entry_date >= month_start,
+        HourEntry.entry_date < month_end,
+        HourEntry.archived == True,  # noqa: E712
+    ).update({"archived": False})
+    db.session.commit()
+    flash(f"{count} lançamentos de {month:02d}/{year} restaurados.", "success")
+    return redirect(url_for("archive_view"))
+
+
+@app.get("/archive")
+@login_required
+def archive_view():
+    """Exibe o arquivo morto — meses arquivados com resumo por colaborador."""
+    # Agrupa meses que têm ao menos um lançamento arquivado
+    archived_entries = (
+        db.session.query(HourEntry, Collaborator)
+        .join(Collaborator, Collaborator.id == HourEntry.collaborator_id)
+        .filter(HourEntry.archived == True)  # noqa: E712
+        .order_by(HourEntry.entry_date.desc())
+        .all()
+    )
+
+    # Agrupa por ano-mês
+    months_dict: dict[str, dict] = defaultdict(lambda: {
+        "label": "", "key": "", "collabs": defaultdict(lambda: {
+            "name": "", "positive": Decimal("0"), "negative": Decimal("0"), "net": Decimal("0"),
+        })
+    })
+    for entry, collab in archived_entries:
+        key = f"{entry.entry_date.year}-{entry.entry_date.month:02d}"
+        bucket = months_dict[key]
+        bucket["label"] = f"{_MESES_PT[entry.entry_date.month]} {entry.entry_date.year}"
+        bucket["key"] = key
+        cb = bucket["collabs"][collab.id]
+        cb["name"] = collab.name
+        h = Decimal(entry.hours)
+        if h >= 0:
+            cb["positive"] += h
+        else:
+            cb["negative"] += abs(h)
+        cb["net"] = cb["positive"] - cb["negative"]
+
+    months = sorted(months_dict.values(), key=lambda m: m["key"], reverse=True)
+    for m in months:
+        m["collabs"] = sorted(m["collabs"].values(), key=lambda c: c["name"].lower())
+
+    return render_template("archive.html", months=months)
+
+
+# ---------------------------------------------------------------------------
+# PDF individual do colaborador
+# ---------------------------------------------------------------------------
+
+@app.get("/collaborators/<int:collaborator_id>/pdf")
+def collaborator_pdf(collaborator_id: int):
+    """Gera PDF com resumo e histórico completo do colaborador no mês."""
+    year, month = _parse_month_param(request.args.get("month"))
+    collab = db.session.get(Collaborator, collaborator_id)
+    if not collab:
+        flash("Colaborador nao encontrado.", "danger")
+        return redirect(url_for("index"))
+
+    month_start = date(year, month, 1)
+    month_end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+
+    entries = (
+        HourEntry.query
+        .filter(
+            HourEntry.collaborator_id == collaborator_id,
+            HourEntry.entry_date >= month_start,
+            HourEntry.entry_date < month_end,
+        )
+        .order_by(HourEntry.entry_date.asc())
+        .all()
+    )
+
+    positive = sum((Decimal(e.hours) for e in entries if e.hours >= 0), Decimal("0"))
+    negative = sum((abs(Decimal(e.hours)) for e in entries if e.hours < 0), Decimal("0"))
+    net = positive - negative
+    days = int(max(net, Decimal("0")) // Decimal("8"))
+
+    global_daily_rate = Decimal(get_setting("daily_rate", "0"))
+    daily_rate = Decimal(collab.daily_rate) if collab.daily_rate is not None else global_daily_rate
+    total_value = Decimal(days) * daily_rate if daily_rate > 0 else Decimal("0")
+
+    month_name = _MESES_PT[month]
+
+    html = render_template(
+        "pdf_collab.html",
+        collab=collab,
+        entries=entries,
+        month_name=month_name,
+        year=year,
+        month=month,
+        positive=positive,
+        negative=negative,
+        net=net,
+        days=days,
+        daily_rate=daily_rate,
+        total_value=total_value,
+    )
+    try:
+        from weasyprint import HTML  # type: ignore[import-untyped]
+        pdf_bytes = HTML(string=html, base_url=request.host_url).write_pdf()
+        response = make_response(pdf_bytes)
+        response.headers["Content-Type"] = "application/pdf"
+        response.headers["Content-Disposition"] = (
+            f'inline; filename="{collab.name.replace(" ","_")}_{year}_{month:02d}.pdf"'
+        )
+        return response
+    except Exception as exc:  # noqa: BLE001
+        flash(f"Erro ao gerar PDF: {exc}", "danger")
+        return redirect(url_for("collaborator_history", collaborator_id=collaborator_id))
 
 
 @app.get("/summary/pdf")

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ collab.name }} — {{ month_name }} {{ year }}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Ubuntu+Mono:wght@400;700&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #1a3470;
+      --navy-dark: #0f2050;
+      --teal: #2dc4b4;
+      --blue-mid: #1565c0;
+      --text: #0f1c30;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --ok: #059669;
+      --danger: #dc2626;
+    }
+
+    body {
+      font-family: 'Ubuntu', sans-serif;
+      font-size: 10.5pt;
+      color: var(--text);
+      background: #fff;
+    }
+
+    /* ── CAPA ── */
+    .cover {
+      background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 60%, var(--blue-mid) 100%);
+      color: #fff;
+      padding: 36px 40px 32px;
+      margin-bottom: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    .cover::after {
+      content: "";
+      position: absolute;
+      right: -40px; top: -40px;
+      width: 200px; height: 200px;
+      background: rgba(45,196,180,.18);
+      border-radius: 50%;
+    }
+    .cover-tag {
+      font-family: 'Ubuntu Mono', monospace;
+      font-size: 7.5pt;
+      letter-spacing: 0.14em;
+      color: var(--teal);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .cover h1 {
+      font-size: 24pt;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+    .cover-role {
+      font-size: 11pt;
+      color: rgba(255,255,255,.7);
+      margin-bottom: 6px;
+    }
+    .cover-sub {
+      font-size: 8.5pt;
+      color: rgba(255,255,255,.55);
+      font-family: 'Ubuntu Mono', monospace;
+    }
+
+    /* ── METRICS ── */
+    .totals {
+      display: flex;
+      gap: 10px;
+      padding: 0 40px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+    .total-card {
+      flex: 1;
+      min-width: 100px;
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--teal);
+      border-radius: 8px;
+      padding: 12px 14px;
+      text-align: center;
+    }
+    .total-card .label {
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .total-card .value {
+      font-size: 15pt;
+      font-weight: 700;
+      color: var(--navy);
+      font-family: 'Ubuntu Mono', monospace;
+    }
+    .total-card.highlight { border-top-color: var(--ok); }
+    .total-card.highlight .value { color: var(--ok); }
+
+    /* ── SECTION TITLE ── */
+    .section-title {
+      font-size: 9pt;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 40px 10px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid var(--navy);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      page-break-after: avoid;
+    }
+    .section-title::before {
+      content: "";
+      display: inline-block;
+      width: 3px;
+      height: 1em;
+      background: var(--teal);
+      border-radius: 2px;
+    }
+
+    /* ── ENTRIES TABLE ── */
+    .detail-wrap {
+      padding: 0 40px;
+      margin-bottom: 32px;
+    }
+    table.entries {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+    }
+    table.entries thead tr {
+      background: var(--navy);
+      color: #fff;
+    }
+    table.entries thead th {
+      padding: 6px 8px;
+      text-align: left;
+      font-size: 7.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    table.entries thead th:first-child { border-radius: 6px 0 0 0; }
+    table.entries thead th:last-child  { border-radius: 0 6px 0 0; }
+    table.entries tbody tr:nth-child(odd)  { background: #f7f9fc; }
+    table.entries tbody tr:nth-child(even) { background: #fff; }
+    table.entries tbody td {
+      padding: 5px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+    }
+    table.entries tbody tr:last-child td { border-bottom: none; }
+    table.entries td.mono { font-family: 'Ubuntu Mono', monospace; }
+    table.entries td.pos  { font-family: 'Ubuntu Mono', monospace; color: var(--ok); font-weight: 700; }
+    table.entries td.neg  { font-family: 'Ubuntu Mono', monospace; color: var(--danger); font-weight: 700; }
+    table.entries td.muted { color: var(--muted); font-size: 8pt; }
+
+    /* ── PAGE HEADER / FOOTER ── */
+    .page-header {
+      position: running(pageHeader);
+      display: table;
+      width: 100%;
+      padding: 7px 40px 8px;
+      border-bottom: 1px solid var(--line);
+      font-family: 'Ubuntu Mono', monospace;
+      font-size: 7.5pt;
+      color: var(--muted);
+      background: #fff;
+    }
+    .page-header-brand { font-weight: 700; color: var(--navy); }
+    .page-footer {
+      position: running(pageFooter);
+      width: 100%;
+      padding: 6px 40px 5px;
+      border-top: 1px solid var(--line);
+      font-family: 'Ubuntu Mono', monospace;
+      font-size: 7.5pt;
+      color: var(--muted);
+      background: #fff;
+      text-align: center;
+    }
+    .page-footer-pagenum::after { content: "Página " counter(page); font-weight: 700; color: var(--navy); }
+
+    @page {
+      size: A4;
+      margin-top: 52px;
+      margin-bottom: 34px;
+      margin-left: 0;
+      margin-right: 0;
+      @top-center {
+        content: element(pageHeader);
+        vertical-align: middle;
+      }
+      @bottom-center {
+        content: element(pageFooter);
+        vertical-align: middle;
+      }
+    }
+    @page :first {
+      margin: 0;
+      @top-center { content: none; }
+      @bottom-center { content: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Capa -->
+  <div class="cover">
+    <p class="cover-tag">Controle de Horas · MultiMax · {{ month_name }} {{ year }}</p>
+    <h1>{{ collab.name }}</h1>
+    {% if collab.role %}<p class="cover-role">{{ collab.role }}</p>{% endif %}
+    <p class="cover-sub">multimax.tec.br · gerado em {{ "%02d/%02d/%04d"|format(now.day, now.month, now.year) if now is defined else month_name + " " + year|string }}</p>
+  </div>
+
+  <!-- Cabeçalho de página (páginas 2+) -->
+  <div class="page-header">
+    <span class="page-header-brand">MultiMax · {{ collab.name }} · {{ month_name }} {{ year }}</span>
+  </div>
+  <div class="page-footer">
+    <span>MultiMax · multimax.tec.br</span>
+    &nbsp;&nbsp;
+    <span class="page-footer-pagenum"></span>
+  </div>
+
+  <!-- Métricas -->
+  <div class="totals">
+    <div class="total-card">
+      <div class="label">H Bruto</div>
+      <div class="value">{{ "%.1f"|format(positive|float) }}h</div>
+    </div>
+    <div class="total-card">
+      <div class="label">H Descontos</div>
+      <div class="value">{% if negative > 0 %}{{ "%.1f"|format(negative|float) }}h{% else %}—{% endif %}</div>
+    </div>
+    <div class="total-card">
+      <div class="label">H Líquido</div>
+      <div class="value">{{ "%.1f"|format(net|float) }}h</div>
+    </div>
+    <div class="total-card">
+      <div class="label">Dias Completos</div>
+      <div class="value">{{ days }}d</div>
+    </div>
+    {% if daily_rate > 0 %}
+    <div class="total-card">
+      <div class="label">Diária</div>
+      <div class="value" style="font-size:11pt">R$&nbsp;{{ "%.2f"|format(daily_rate|float)|replace(".",",") }}</div>
+    </div>
+    <div class="total-card highlight">
+      <div class="label">Valor Est.</div>
+      <div class="value" style="font-size:11pt">R$&nbsp;{{ "%.2f"|format(total_value|float)|replace(".",",") }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Lançamentos -->
+  <p class="section-title">Lançamentos — {{ month_name }} {{ year }}</p>
+  <div class="detail-wrap">
+    {% if entries %}
+    <table class="entries">
+      <thead>
+        <tr>
+          <th style="width:90px">Data</th>
+          <th style="width:70px;text-align:right">Horas</th>
+          <th>Observação</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td class="mono">{{ e.entry_date.strftime('%d/%m/%Y') }}</td>
+          <td class="{{ 'pos' if e.hours >= 0 else 'neg' }}" style="text-align:right">
+            {{ e.hours|hhmm }}
+          </td>
+          <td class="muted">
+            {%- if e.note and e.note.startswith('Ponto:') -%}
+              {%- set parts = e.note[6:].split('→') -%}
+              {%- if parts|length == 2 -%}
+                {{ parts[0].strip() }} → {{ parts[1].split('(')[0].strip() }}
+              {%- else -%}{{ e.note }}{%- endif -%}
+            {%- else -%}{{ e.note or '—' }}{%- endif -%}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--muted);padding:1rem 0;">Nenhum lançamento neste mês.</p>
+    {% endif %}
+  </div>
+
+</body>
+</html>

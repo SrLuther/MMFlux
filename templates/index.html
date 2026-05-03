@@ -19,6 +19,11 @@
                 <input type="hidden" name="month" value="{{ '%s-%02d'|format(totals.year, totals.month) }}">
                 <button class="btn btn-whatsapp" type="submit">&#128196; Enviar PDF</button>
             </form>
+            <form method="post" action="{{ url_for('archive_month') }}" style="display:inline"
+                  onsubmit="return confirm('Arquivar TODOS os lançamentos de {{ totals.month_label }}? Eles sairão do painel ativo e ficarão no Arquivo Morto.')">
+                <input type="hidden" name="month" value="{{ '%s-%02d'|format(totals.year, totals.month) }}">
+                <button class="btn btn-ghost" type="submit">&#128452; Arquivar mês</button>
+            </form>
             {% endif %}
         </div>
     </div>

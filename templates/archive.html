@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Arquivo Morto | MultiMax{% endblock %}
+{% block content %}
+<section class="page-wrap">
+
+  <header class="page-header">
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+      <a class="btn btn-ghost" href="{{ url_for('index') }}">&#8592; Voltar</a>
+      <div>
+        <h2>Arquivo Morto</h2>
+        <p class="sub">Lançamentos arquivados, fora do painel ativo.</p>
+      </div>
+    </div>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <p class="alert alert-{{ cat }}">{{ msg }}</p>
+    {% endfor %}
+  {% endwith %}
+
+  {% if months %}
+    {% for m in months %}
+    <article class="card mb-lg">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem;">
+        <h3 style="margin:0">{{ m.label }}</h3>
+        <form method="post" action="{{ url_for('restore_month') }}"
+              onsubmit="return confirm('Restaurar lançamentos de {{ m.label }} para o painel ativo?')">
+          <input type="hidden" name="month" value="{{ m.key }}">
+          <button class="btn btn-ghost" type="submit">&#8635; Restaurar mês</button>
+        </form>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Colaborador</th>
+            <th>H Bruto</th>
+            <th>H Desc.</th>
+            <th>H Líquido</th>
+            <th>Dias</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in m.collabs %}
+          <tr>
+            <td>{{ c.name }}</td>
+            <td class="hours pos">{{ c.positive|hhmm }}</td>
+            <td class="hours neg">{% if c.negative > 0 %}-{{ c.negative|hhmm }}{% else %}—{% endif %}</td>
+            <td class="hours {{ 'pos' if c.net >= 0 else 'neg' }}">{{ c.net|hhmm }}</td>
+            <td>{{ (c.net.__float__() // 8)|int if c.net > 0 else 0 }}d</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </article>
+    {% endfor %}
+  {% else %}
+    <article class="card">
+      <p class="empty" style="padding:2rem 1rem;text-align:center;">Nenhum lançamento arquivado.</p>
+    </article>
+  {% endif %}
+
+</section>
+{% endblock %}
