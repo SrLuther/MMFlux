@@ -362,7 +362,7 @@ def monthly_summary(
         else:
             bucket["negative"] += abs(hours_value)
         bucket["net"] = bucket["positive"] - bucket["negative"]
-        bucket["days"] = int(max(bucket["net"], Decimal("0")) // Decimal("8"))
+        bucket["days"] = int(max(bucket["net"], Decimal("0")) * 60 // 440)
 
     cards = sorted(grouped.values(), key=lambda item: item["name"].lower())
 
@@ -536,7 +536,7 @@ def admin_delete(user_id: int):
 @app.post("/settings/daily-rate")
 @login_required
 def set_daily_rate():
-    """Persiste o valor da diaria (8h) usado para calculo de custo."""
+    """Persiste o valor da diaria (7h20) usado para calculo de custo."""
     raw = (request.form.get("daily_rate") or "").strip().replace(",", ".")
     month_param = request.form.get("month", "")
     try:
@@ -801,7 +801,7 @@ def collaborator_history(collaborator_id: int):
         else:
             total_neg += abs(v)
     total_net = total_pos - total_neg
-    total_days = int(max(total_net, Decimal("0")) // Decimal("8"))
+    total_days = int(max(total_net, Decimal("0")) * 60 // 440)
 
     # agrupar por mes (ano-mes)
     months_dict: dict[str, list] = defaultdict(list)
@@ -956,7 +956,7 @@ def collaborator_pdf(collaborator_id: int):
     positive = sum((Decimal(e.hours) for e in entries if e.hours >= 0), Decimal("0"))
     negative = sum((abs(Decimal(e.hours)) for e in entries if e.hours < 0), Decimal("0"))
     net = positive - negative
-    days = int(max(net, Decimal("0")) // Decimal("8"))
+    days = int(max(net, Decimal("0")) * 60 // 440)
 
     global_daily_rate = Decimal(get_setting("daily_rate", "0"))
     daily_rate = Decimal(collab.daily_rate) if collab.daily_rate is not None else global_daily_rate

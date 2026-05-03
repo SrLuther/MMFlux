@@ -55,7 +55,7 @@
     </div>
     {% if current_user.is_authenticated %}
     <details class="daily-rate-form">
-        <summary>&#9881; Definir valor da diária (8h)</summary>
+        <summary>&#9881; Definir valor da diária (7h20)</summary>
         <form method="post" action="{{ url_for('set_daily_rate') }}">
             <input type="hidden" name="month" value="{{ '%s-%02d'|format(totals.year, totals.month) }}">
             <input type="number" name="daily_rate" step="0.01" min="0" placeholder="Ex: 200.00"
