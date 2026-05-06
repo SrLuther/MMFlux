@@ -14,6 +14,10 @@
             <input type="password" name="password" required>
             <button class="btn" type="submit">Entrar</button>
         </form>
+        <p style="margin-top:1rem;text-align:center;font-size:.85rem;color:var(--text-muted)">
+            Colaborador? Acesse o ponto em
+            <a href="{{ url_for('ponto_login') }}">Registro de Ponto</a>
+        </p>
     </article>
 </section>
 {% endblock %}
