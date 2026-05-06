@@ -48,6 +48,10 @@
         <span class="admin-panel-title">&#128737; Painel Administrativo</span>
         <span class="admin-panel-month">{{ totals.month_label }}</span>
     </div>
+    <div class="admin-actions-row" style="margin-bottom:.25rem">
+        <a class="btn btn-ghost" href="{{ url_for('archive_view') }}">&#128452; Arquivo</a>
+        <a class="btn btn-ghost" href="{{ url_for('admins_list') }}">&#128100; Admins</a>
+    </div>
 
     <div class="admin-actions-row">
         <form method="post" action="{{ url_for('whatsapp_resumo') }}" style="display:contents"
