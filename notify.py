@@ -11,11 +11,8 @@ import requests  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_URL = "https://www.multimax.tec.br/notify"
-_FALLBACKS = [
-    "http://127.0.0.1:3001/notify",
-    "http://localhost:3001/notify",
-]
+_DEFAULT_URL = "http://127.0.0.1:3001/notify"
+_FALLBACKS: list[str] = []
 
 
 def _notify_url() -> str:
@@ -75,6 +72,32 @@ def send(mensagem: str, origin: str = "fluxos", para: str | None = None) -> None
         return
     mensagem = f"{mensagem}\n\n{_LINK}"
     t = threading.Thread(target=_post, args=(mensagem, origin, None, para), daemon=True)
+    t.start()
+
+
+def boas_vindas_whatsapp(collab_name: str, para: str) -> None:
+    """Envia mensagem de boas-vindas quando colaborador cadastra o WhatsApp."""
+    primeiro_nome = collab_name.split()[0] if collab_name else "colaborador"
+    mensagem = (
+        f"Olá, *{primeiro_nome}*! 👋 Meu nome é *Max*, assistente de notificações da *MultiMax*.\n\n"
+        "Seu número foi cadastrado com sucesso e a partir de agora você receberá avisos diretamente aqui sobre o seu registro de ponto.\n\n"
+        "📌 *Sobre mim*\n"
+        "Sou um bot automático — envio notificações, mas *não leio nem respondo* mensagens que você me enviar. Para dúvidas ou suporte, fale diretamente com seu gestor.\n\n"
+        "🔔 *Você receberá notificações quando:*\n"
+        "• ✅ Um ponto for registrado (entrada, intervalo ou saída)\n"
+        "• ⚠️ Uma jornada ficar incompleta (batida sem fechamento)\n"
+        "• ⏰ Você não registrar uma saída esperada após 20 minutos do horário previsto\n\n"
+        "📵 *Dica de configuração*\n"
+        "Recomendamos desativar o salvamento automático de mídia desta conversa — embora seja muito improvável que arquivos sejam enviados, é uma boa prática. Vá em: *Conversa → Nome do contato → Visibilidade de mídia → Não*.\n\n"
+        "💾 *Pode salvar o contato!*\n"
+        "Fique à vontade para salvar este número na agenda como \"Max - MultiMax\" ou como preferir.\n\n"
+        "🔒 *Privacidade*\n"
+        "Nenhum dado sensível seu é coletado ou compartilhado. As notificações contêm apenas informações do seu próprio registro de ponto.\n\n"
+        "❌ *Quer desativar as notificações pessoais?*\n"
+        "Acesse *www.multimax.tec.br/ponto/login*, faça login, vá até *Meu Painel*, depois no botão *Ações*, role a tela até a seção *📱 Notificações WhatsApp* e clique em *✖ Remover*.\n\n"
+        "🌐 www.multimax.tec.br"
+    )
+    t = threading.Thread(target=_post, args=(mensagem, "fluxos", None, para), daemon=True)
     t.start()
 
 

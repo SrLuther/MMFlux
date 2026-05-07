@@ -17,6 +17,7 @@ apt-get install -y \
     python3-venv \
     python3-pip \
     git \
+    curl \
     libcairo2 \
     libpango-1.0-0 \
     libgdk-pixbuf-2.0-0 \
@@ -26,6 +27,13 @@ apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-por \
     libtesseract-dev
+
+echo "==> Instalando Node.js 20 LTS..."
+if ! command -v node &>/dev/null; then
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    apt-get install -y nodejs
+fi
+echo "   Node.js $(node --version), npm $(npm --version)"
 
 echo "==> Criando usuario de servico '$APP_USER'..."
 id "$APP_USER" &>/dev/null || useradd --system --shell /bin/false --home "$APP_DIR" "$APP_USER"
@@ -59,12 +67,27 @@ echo "==> Ajustando permissoes..."
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 chmod 600 "$APP_DIR/.env"
 
-echo "==> Instalando servico systemd..."
-cp "$APP_DIR/deploy/mmflux.service" "/etc/systemd/system/${SERVICE_NAME}.service"
+echo "==> Instalando dependencias do whatsapp-service..."
+cd "$APP_DIR/whatsapp-service"
+npm install --omit=dev --quiet
+mkdir -p auth
+chown -R "$APP_USER:$APP_USER" "$APP_DIR/whatsapp-service"
+cd "$APP_DIR"
+
+echo "==> Instalando servico systemd MMFlux..."
+cp "$APP_DIR/deploy/mmflux.service" "/etc/systemd/system/mmflux.service"
+
+echo "==> Instalando servico systemd MMFlux WhatsApp..."
+cp "$APP_DIR/deploy/mmflux-whatsapp.service" "/etc/systemd/system/mmflux-whatsapp.service"
+
 systemctl daemon-reload
-systemctl enable "$SERVICE_NAME"
+systemctl enable mmflux
+systemctl enable mmflux-whatsapp
 
 echo ""
 echo "Instalacao concluida."
-echo "Para iniciar: sudo systemctl start $SERVICE_NAME"
-echo "Para ver logs: sudo journalctl -u $SERVICE_NAME -f"
+echo "Para iniciar o MMFlux:           sudo systemctl start mmflux"
+echo "Para iniciar o WhatsApp Service: sudo systemctl start mmflux-whatsapp"
+echo "Para autenticar o WhatsApp:      acesse http://<ip>:3001/qr.png e escaneie o QR"
+echo "Para ver logs Flask:             sudo journalctl -u mmflux -f"
+echo "Para ver logs WhatsApp:          sudo journalctl -u mmflux-whatsapp -f"

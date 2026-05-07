@@ -348,8 +348,6 @@ body {
    ========================================================= */
 /* ── Painel Admin ── */
 .admin-panel {
-    max-width: var(--max-w);
-    margin: 1rem auto;
     padding: 1rem 1.25rem 1.25rem;
     background: var(--surface);
     border-radius: var(--radius-lg);
@@ -378,12 +376,60 @@ body {
     color: var(--muted);
     font-weight: 600;
 }
-.admin-actions-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: .5rem;
-    margin-bottom: 1rem;
+
+/* Dropdown de ações do painel admin */
+.admin-menu-wrap {
+    position: relative;
+    display: inline-block;
+    margin-left: auto;
 }
+
+.admin-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 200px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 28px rgba(0,0,0,.13);
+    z-index: 200;
+    overflow: hidden;
+}
+.admin-menu.open { display: block; }
+
+.admin-menu-item {
+    display: block;
+    width: 100%;
+    padding: .6rem 1rem;
+    font-size: .875rem;
+    font-weight: 600;
+    color: var(--navy);
+    text-decoration: none;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    transition: background .12s;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+.admin-menu-item:hover { background: var(--surface-2); }
+
+.admin-menu-btn-whatsapp { color: #15803d; }
+.admin-menu-btn-whatsapp:hover { background: #dcfce7; }
+
+.admin-menu-btn-danger { color: var(--danger); }
+.admin-menu-btn-danger:hover { background: #fee2e2; }
+
+.admin-menu-sep {
+    height: 1px;
+    background: var(--line);
+}
+
+.admin-menu form { margin: 0; }
+
 .admin-entry-block {
     margin-top: 1rem;
     padding-top: 1rem;
@@ -574,6 +620,49 @@ body {
     opacity: .7;
 }
 
+.btn-grant-folga {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.btn-grant-folga:hover { filter: brightness(1.15); }
+
+/* Painéis inline do histórico (Editar, Folga) — empurram o conteúdo, não flutuam */
+.hist-inline-panel {
+    margin-top: .75rem;
+    padding: .85rem 1rem;
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: var(--radius);
+}
+
+.hist-inline-panel-title {
+    font-size: .78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: rgba(255,255,255,.85);
+    margin: 0 0 .55rem;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    flex-wrap: wrap;
+}
+
+.hist-inline-panel .hist-action-form input[type=date],
+.hist-inline-panel .hist-action-form input[type=text],
+.hist-inline-panel .hist-action-form input[type=number] {
+    background: rgba(255,255,255,.18);
+    border-color: rgba(255,255,255,.3);
+    color: #fff;
+}
+
+.hist-inline-panel .hist-action-form input::placeholder {
+    color: rgba(255,255,255,.55);
+}
+
 .gives-folga-label {
     display: inline-flex;
     align-items: center;
@@ -607,13 +696,19 @@ body {
     border-radius: var(--radius);
     padding: 0.7rem 0.85rem;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.8rem;
+    flex-direction: column;
+    gap: 0;
     transition: background .12s;
 }
 
 .people-list li:hover { background: var(--surface-3); }
+
+.person-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.8rem;
+}
 
 .person-main {
     flex: 1;
@@ -639,17 +734,63 @@ body {
     align-items: center;
     gap: 0.4rem;
     flex-shrink: 0;
-    flex-wrap: wrap;
-    justify-content: flex-end;
 }
 
-.collab-edit {
+/* Dropdown ⋯ por card de colaborador */
+.card-menu-wrap {
     position: relative;
+    display: inline-block;
 }
 
-.collab-edit .small-form {
-    margin-top: 0.4rem;
-    min-width: 220px;
+.card-menu-btn {
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: .25rem .55rem;
+    letter-spacing: .05em;
+}
+
+.card-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 175px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 6px 20px rgba(0,0,0,.12);
+    z-index: 300;
+    overflow: hidden;
+}
+.card-menu.open { display: block; }
+
+.card-menu-item {
+    display: block;
+    width: 100%;
+    padding: .55rem .9rem;
+    font-size: .875rem;
+    font-weight: 600;
+    color: var(--navy);
+    text-decoration: none;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    transition: background .12s;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+.card-menu-item:hover { background: var(--surface-2); }
+.card-menu-item-warn  { color: var(--danger); }
+.card-menu-item-warn:hover { background: #fee2e2; }
+
+.card-menu form { margin: 0; }
+
+/* Painel de edição expansível abaixo do card */
+.card-edit-panel {
+    margin-top: .75rem;
+    padding-top: .75rem;
+    border-top: 1px solid var(--line);
 }
 
 /* =========================================================
@@ -800,6 +941,7 @@ details summary::-webkit-details-marker { display: none; }
 
 /* ghost em painÃ©is (fundo claro) */
 .panel .btn-ghost,
+.admin-panel .btn-ghost,
 .login-card .btn-ghost {
     background: var(--surface);
     color: var(--navy);
@@ -1011,7 +1153,126 @@ details summary::-webkit-details-marker { display: none; }
     color: rgba(255,255,255,.62);
 }
 
-.hist-hero-back { margin-bottom: 0.6rem; }
+.hist-hero-back { margin-bottom: 0.6rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+
+/* Dropdown de ações no histórico */
+.hist-actions-wrap {
+    position: relative;
+    display: inline-block;
+}
+
+.hist-actions-menu {
+    display: none;
+    position: fixed;
+    top: 0;      /* calculado via JS */
+    left: 0;     /* calculado via JS */
+    min-width: 270px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 28px rgba(0,0,0,.18);
+    z-index: 1000;
+}
+.hist-actions-menu.open { display: block; }
+
+.hist-action-item {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .6rem 1rem;
+    color: var(--text);
+    text-decoration: none;
+    font-size: .9rem;
+    transition: background .15s;
+}
+.hist-action-item:hover { background: var(--surface-2); }
+
+.hist-action-sep {
+    height: 1px;
+    background: var(--line);
+}
+
+.hist-action-section {
+    padding: .7rem 1rem;
+}
+
+.hist-action-label {
+    font-size: .75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--muted);
+    margin: 0 0 .5rem;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+}
+
+.folga-badge {
+    background: var(--ok-bg);
+    color: var(--ok);
+    font-size: .72rem;
+    font-weight: 700;
+    padding: .1rem .45rem;
+    border-radius: 99px;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.hist-action-details {
+    border-bottom: 1px solid var(--line);
+}
+.hist-action-details:last-child { border-bottom: none; }
+.hist-action-details > summary {
+    padding: .65rem 1rem;
+    cursor: pointer;
+    list-style: none;
+    font-size: .9rem;
+    font-weight: 500;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    user-select: none;
+    transition: background .15s;
+}
+.hist-action-details > summary::-webkit-details-marker { display: none; }
+.hist-action-details > summary::after {
+    content: '›';
+    margin-left: auto;
+    font-size: 1.15rem;
+    color: var(--muted);
+    transition: transform .2s;
+}
+.hist-action-details[open] > summary::after { transform: rotate(90deg); }
+.hist-action-details > summary:hover { background: var(--surface-2); }
+.hist-action-details > .hist-action-section {
+    border-top: 1px solid var(--line);
+}
+
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+}
+
+.hist-action-form input[type=date],
+.hist-action-form input[type=text],
+.hist-action-form input[type=number],
+.hist-action-form input[type=tel],
+.hist-action-form input[type=password] {
+    font-size: .85rem;
+    padding: .35rem .6rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+
 
 .hist-hero-body { margin-bottom: 0.75rem; }
 

@@ -47,29 +47,34 @@
     <div class="admin-panel-header">
         <span class="admin-panel-title">&#128737; Painel Administrativo</span>
         <span class="admin-panel-month">{{ totals.month_label }}</span>
-    </div>
-    <div class="admin-actions-row" style="margin-bottom:.25rem">
-        <a class="btn btn-ghost" href="{{ url_for('archive_view') }}">&#128452; Arquivo</a>
-        <a class="btn btn-ghost" href="{{ url_for('admins_list') }}">&#128100; Admins</a>
-        <a class="btn btn-ghost" href="{{ url_for('feriados_list') }}">&#128197; Feriados</a>
-    </div>
-
-    <div class="admin-actions-row">
-        <form method="post" action="{{ url_for('whatsapp_resumo') }}" style="display:contents"
-              onsubmit="return confirm('Enviar resumo de {{ totals.month_label }} para o grupo WhatsApp?')">
-            <input type="hidden" name="month" value="{{ '%s-%02d'|format(totals.year, totals.month) }}">
-            <button class="btn btn-whatsapp" type="submit">&#128172; Enviar Resumo</button>
-        </form>
-        <form method="post" action="{{ url_for('whatsapp_pdf') }}" style="display:contents"
-              onsubmit="return confirm('Enviar PDF de {{ totals.month_label }} para o grupo WhatsApp?')">
-            <input type="hidden" name="month" value="{{ '%s-%02d'|format(totals.year, totals.month) }}">
-            <button class="btn btn-whatsapp" type="submit">&#128196; Enviar PDF</button>
-        </form>
-        <form method="post" action="{{ url_for('archive_month') }}" style="display:contents"
-              onsubmit="return confirm('Arquivar TODOS os lançamentos de {{ totals.month_label }}? Eles sairão do painel ativo e ficarão no Arquivo Morto.')">
-            <input type="hidden" name="month" value="{{ '%s-%02d'|format(totals.year, totals.month) }}">
-            <button class="btn btn-ghost" type="submit">&#128452; Arquivar mês</button>
-        </form>
+        <div class="admin-menu-wrap">
+            <button type="button" class="btn btn-ghost admin-menu-toggle" id="admin-menu-btn"
+                    aria-haspopup="true" aria-expanded="false">
+                A&#231;&#245;es &#9660;
+            </button>
+            <div class="admin-menu" id="admin-menu">
+                <a class="admin-menu-item" href="{{ url_for('archive_view') }}">&#128452; Arquivo</a>
+                <a class="admin-menu-item" href="{{ url_for('admins_list') }}">&#128100; Admins</a>
+                <a class="admin-menu-item" href="{{ url_for('feriados_list') }}">&#128197; Feriados</a>
+                <div class="admin-menu-sep"></div>
+                <form method="post" action="{{ url_for('whatsapp_resumo') }}"
+                      onsubmit="return confirm('Enviar resumo de {{ totals.month_label }} para o grupo WhatsApp?')">
+                    <input type="hidden" name="month" value="{{ '%s-%02d'|format(totals.year, totals.month) }}">
+                    <button class="admin-menu-item admin-menu-btn-whatsapp" type="submit">&#128172; Enviar Resumo</button>
+                </form>
+                <form method="post" action="{{ url_for('whatsapp_pdf') }}"
+                      onsubmit="return confirm('Enviar PDF de {{ totals.month_label }} para o grupo WhatsApp?')">
+                    <input type="hidden" name="month" value="{{ '%s-%02d'|format(totals.year, totals.month) }}">
+                    <button class="admin-menu-item admin-menu-btn-whatsapp" type="submit">&#128196; Enviar PDF</button>
+                </form>
+                <div class="admin-menu-sep"></div>
+                <form method="post" action="{{ url_for('archive_month') }}"
+                      onsubmit="return confirm('Arquivar TODOS os lançamentos de {{ totals.month_label }}? Eles sairão do painel ativo e ficarão no Arquivo Morto.')">
+                    <input type="hidden" name="month" value="{{ '%s-%02d'|format(totals.year, totals.month) }}">
+                    <button class="admin-menu-item admin-menu-btn-danger" type="submit">&#128452; Arquivar mês</button>
+                </form>
+            </div>
+        </div>
     </div>
 
     <details class="daily-rate-form">
@@ -109,40 +114,11 @@
             <h3>Resumo por colaborador</h3>
             <small>{{ totals.month_label }}</small>
         </div>
-        <div class="cards-grid">
-            {% for item in cards %}
-            <div class="card">
-                <header>
-                    <h4>{{ item.name }}</h4>
-                    <span>{{ item.role }}</span>
-                </header>
-                <dl>
-                    <div><dt>H Bruto</dt><dd>{{ item.positive|hhmm }}</dd></div>
-                    <div><dt>H Descontos</dt><dd>{{ item.negative|hhmm }}</dd></div>
-                    <div><dt>H Liquido</dt><dd>{{ item.net|hhmm }}</dd></div>
-                    <div><dt>Dias</dt><dd>{{ item.days }}</dd></div>
-                    <div><dt>Dir. Folga</dt><dd class="{% if item.folga_days > 0 %}folga-ok{% else %}folga-zero{% endif %}">{{ item.folga_days }}d</dd></div>
-                </dl>
-                {% if current_user.is_authenticated and item.folga_days > 0 %}
-                <form class="use-folga-form" method="post"
-                      action="{{ url_for('use_folga', collaborator_id=item.collab_id) }}"
-                      onsubmit="return confirm('Descontar 1 dia de folga de {{ item.name }}?')">
-                    <input type="date" name="folga_date" value="{{ totals.month_start }}" required>
-                    <input type="text" name="note" placeholder="Obs (opcional)" value="Folga utilizada">
-                    <button class="btn btn-folga" type="submit">&#127774; Usar Folga</button>
-                </form>
-                {% endif %}
-            </div>
-            {% else %}
-            <p class="empty">Sem lancamentos em {{ totals.month_label }}.</p>
-            {% endfor %}
-        </div>
-    </article>
-
-    <article class="panel">
-        <div class="panel-head">
-            <h3>Colaboradores</h3>
-            <small>Cadastro base do fluxo</small>
+        <div style="padding:.4rem 0 .6rem;display:flex;align-items:center;gap:.4rem">
+            <button type="button" id="btn-search-toggle" title="Buscar colaborador"
+                    style="background:none;border:none;cursor:pointer;padding:.15rem .2rem;color:var(--navy);font-size:1.05rem;line-height:1;flex-shrink:0">&#128269;</button>
+            <input type="search" id="collab-search" placeholder="Buscar por nome..."
+                   style="display:none;flex:1;padding:.3rem .5rem;border:1.5px solid var(--line);border-radius:6px;font-size:.85rem;min-width:0">
         </div>
 
         {% if current_user.is_authenticated %}
@@ -160,62 +136,93 @@
         </form>
         {% endif %}
 
-        <ul class="people-list">
-            {% for c in collaborators %}
-            <li>
-                <div class="person-main">
-                    <strong>{{ c.name }}</strong>
-                    <span>{{ c.role or '-' }}</span>
-                    <span>Diaria: {% if c.daily_rate is not none %}R$ {{ '{:,.2f}'.format(c.daily_rate)|replace(',','X')|replace('.',',')|replace('X','.') }}{% else %}-{% endif %}</span>
-                </div>
-                <div class="row-actions">
-                    <span class="status {{ 'on' if c.active else 'off' }}">{{ 'Ativo' if c.active else 'Inativo' }}</span>
-                    <a class="btn btn-ghost" href="{{ url_for('collaborator_history', collaborator_id=c.id) }}">Histórico</a>
-                    {% if current_user.is_authenticated %}
-                    <details class="collab-edit">
-                        <summary>Editar</summary>
-                        <form class="small-form" method="post" action="{{ url_for('update_collaborator', collaborator_id=c.id) }}">
-                            <input type="text" name="name" value="{{ c.name }}" required>
-                            <input type="text" name="role" value="{{ c.role or '' }}" placeholder="Funcao (opcional)">
-                            <input type="number" name="daily_rate" step="0.01" min="0" value="{{ c.daily_rate if c.daily_rate is not none else '' }}" placeholder="Diaria (R$)">
-                            <button class="btn" type="submit">Salvar</button>
-                        </form>
-                        <form class="small-form" method="post"
-                              action="{{ url_for('set_ponto_password', collaborator_id=c.id) }}">
-                            <div style="display:flex;gap:.4rem;align-items:center;">
-                                <input type="text" name="ponto_password"
-                                       id="pass-{{ c.id }}"
-                                       placeholder="Nova senha ponto" maxlength="10" style="flex:1">
-                                <button type="button" class="btn btn-ghost" style="white-space:nowrap"
-                                        onclick="suggestPassFixed('{{ c.name }}','pass-{{ c.id }}')">Sugerir</button>
+        <div id="no-results" style="display:none;padding:.75rem;color:var(--text-muted);font-size:.88rem">Nenhum colaborador encontrado.</div>
+        <div id="cards-pagination" style="display:flex;align-items:center;justify-content:flex-end;gap:.4rem;padding:.4rem 0;font-size:.82rem"></div>
+        <div class="cards-grid" id="cards-grid">
+            {% for item in cards %}
+            <div class="card" id="card-{{ item.collab_id }}" data-collab-name="{{ item.name|lower }}">
+                <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem">
+                    <div>
+                        <h4>{{ item.name }}</h4>
+                        <span>{{ item.role }}</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:.4rem;flex-shrink:0">
+                        <span class="status {{ 'on' if item.active else 'off' }}">{{ 'Ativo' if item.active else 'Inativo' }}</span>
+                        <div class="card-menu-wrap">
+                            <button type="button" class="btn btn-ghost card-menu-btn"
+                                    aria-haspopup="true" aria-expanded="false"
+                                    data-card="{{ item.collab_id }}" style="padding:.2rem .5rem">&#8943;</button>
+                            <div class="card-menu" id="card-menu-{{ item.collab_id }}">
+                                <a class="card-menu-item" href="{{ url_for('collaborator_history', collaborator_id=item.collab_id) }}">&#128203; Histórico</a>
+                                {% if current_user.is_authenticated %}
+                                <button type="button" class="card-menu-item"
+                                        onclick="toggleCardEdit({{ item.collab_id }})">&#9998; Editar</button>
+                                <form method="post" action="{{ url_for('toggle_collaborator', collaborator_id=item.collab_id) }}">
+                                    <button class="card-menu-item card-menu-item-warn" type="submit">
+                                        &#8635; Alternar status
+                                    </button>
+                                </form>
+                                {% endif %}
                             </div>
-                            <div style="display:flex;gap:.4rem;align-items:center;">
-                                <span style="font-size:.8rem;color:var(--text-muted)">
-                                    {% if c.ponto_password_hash %}&#10003; Senha definida{% else %}Sem senha{% endif %}
-                                </span>
-                                <button class="btn" type="submit" style="margin-left:auto">Definir senha</button>
-                            </div>
-                        </form>
-                        <hr style="margin:.5rem 0;border-color:var(--border)">
-                        <p style="font-size:.8rem;color:var(--text-muted);margin:.25rem 0">Tornar administrador</p>
-                        <form class="small-form" method="post"
-                              action="{{ url_for('make_collaborator_admin', collaborator_id=c.id) }}">
-                            <input type="text" name="admin_username" placeholder="Login de admin"
-                                   value="{{ c.name.split()[0]|lower }}" required>
-                            <input type="password" name="admin_password" placeholder="Senha de admin" required minlength="4">
-                            <button class="btn" type="submit">Criar acesso admin</button>
-                        </form>
-                    </details>
-                    <form method="post" action="{{ url_for('toggle_collaborator', collaborator_id=c.id) }}">
-                        <button class="btn btn-ghost" type="submit">Alternar</button>
+                        </div>
+                    </div>
+                </header>
+                <dl>
+                    <div><dt>H Bruto</dt><dd>{{ item.positive|hhmm }}</dd></div>
+                    <div><dt>H Descontos</dt><dd>{{ item.negative|hhmm }}</dd></div>
+                    <div><dt>H Liquido</dt><dd>{{ item.net|hhmm }}</dd></div>
+                    <div><dt>Dias</dt><dd>{{ item.days }}</dd></div>
+                    <div><dt>Dir. Folga</dt><dd class="{% if item.folga_days > 0 %}folga-ok{% else %}folga-zero{% endif %}">{{ item.folga_days }}d</dd></div>
+                </dl>
+                {% if current_user.is_authenticated and item.folga_days > 0 %}
+                <form class="use-folga-form" method="post"
+                      action="{{ url_for('use_folga', collaborator_id=item.collab_id) }}"
+                      onsubmit="return confirm('Descontar 1 dia de folga de {{ item.name }}?')">
+                    <input type="date" name="folga_date" value="{{ totals.month_start }}" required>
+                    <input type="text" name="note" placeholder="Obs (opcional)" value="Folga utilizada">
+                    <button class="btn btn-folga" type="submit">&#127774; Usar Folga</button>
+                </form>
+                {% endif %}
+                {% if current_user.is_authenticated %}
+                <div class="card-edit-panel" id="edit-panel-{{ item.collab_id }}" hidden>
+                    <form class="small-form" method="post" action="{{ url_for('update_collaborator', collaborator_id=item.collab_id) }}">
+                        <input type="text" name="name" value="{{ item.name }}" required>
+                        <input type="text" name="role" value="{{ item.role if item.role != '-' else '' }}" placeholder="Funcao (opcional)">
+                        <input type="number" name="daily_rate" step="0.01" min="0" value="{{ item.daily_rate if item.daily_rate is not none else '' }}" placeholder="Diaria (R$)">
+                        <button class="btn" type="submit">Salvar</button>
                     </form>
-                    {% endif %}
+                    <form class="small-form" method="post"
+                          action="{{ url_for('set_ponto_password', collaborator_id=item.collab_id) }}">
+                        <div style="display:flex;gap:.4rem;align-items:center;">
+                            <input type="text" name="ponto_password"
+                                   id="pass-{{ item.collab_id }}"
+                                   placeholder="Nova senha ponto" maxlength="10" style="flex:1">
+                            <button type="button" class="btn btn-ghost" style="white-space:nowrap"
+                                    onclick="suggestPassFixed('{{ item.name }}','pass-{{ item.collab_id }}')">Sugerir</button>
+                        </div>
+                        <div style="display:flex;gap:.4rem;align-items:center;">
+                            <span style="font-size:.8rem;color:var(--text-muted)">
+                                {% if item.ponto_password_hash %}&#10003; Senha definida{% else %}Sem senha{% endif %}
+                            </span>
+                            <button class="btn" type="submit" style="margin-left:auto">Definir senha</button>
+                        </div>
+                    </form>
+                    <hr style="margin:.5rem 0;border-color:var(--line)">
+                    <p style="font-size:.8rem;color:var(--muted);margin:.25rem 0">Tornar administrador</p>
+                    <form class="small-form" method="post"
+                          action="{{ url_for('make_collaborator_admin', collaborator_id=item.collab_id) }}">
+                        <input type="text" name="admin_username" placeholder="Login de admin"
+                               value="{{ item.name.split()[0]|lower }}" required>
+                        <input type="password" name="admin_password" placeholder="Senha de admin" required minlength="4">
+                        <button class="btn" type="submit">Criar acesso admin</button>
+                    </form>
                 </div>
-            </li>
+                {% endif %}
+            </div>
             {% else %}
-            <li class="empty">Nenhum colaborador cadastrado.</li>
+            <p class="empty">Nenhum colaborador cadastrado.</p>
             {% endfor %}
-        </ul>
+        </div>
     </article>
 </section>
 
@@ -291,5 +298,140 @@ async function suggestPassFixed(name, passInputId) {
     const json = await res.json();
     if (json.senha) document.getElementById(passInputId).value = json.senha;
 }
+
+/* Busca + paginação dos cards de colaborador */
+(function () {
+    var ITEMS_PER_PAGE = 10;
+    var currentPage = 1;
+    var searchTerm = '';
+
+    var grid      = document.getElementById('cards-grid');
+    var paginEl   = document.getElementById('cards-pagination');
+    var noResults = document.getElementById('no-results');
+    if (!grid) return;
+
+    var allCards = Array.from(grid.querySelectorAll('.card[data-collab-name]'));
+
+    function render() {
+        var filtered = allCards.filter(function (c) {
+            return !searchTerm || c.dataset.collabName.includes(searchTerm);
+        });
+        var total = filtered.length;
+        var pages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE));
+        if (currentPage > pages) currentPage = 1;
+        var start = (currentPage - 1) * ITEMS_PER_PAGE;
+        var end   = start + ITEMS_PER_PAGE;
+
+        allCards.forEach(function (c) { c.style.display = 'none'; });
+        filtered.slice(start, end).forEach(function (c) { c.style.display = ''; });
+
+        noResults.style.display = total === 0 ? '' : 'none';
+
+        /* paginação */
+        paginEl.innerHTML = '';
+        if (pages <= 1) return;
+        function mkBtn(label, page, active, disabled) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = label;
+            b.style.cssText = 'padding:.2rem .55rem;border:1.5px solid var(--line);border-radius:5px;background:' +
+                (active ? 'var(--navy)' : 'var(--surface)') + ';color:' +
+                (active ? '#fff' : 'var(--navy)') + ';cursor:' + (disabled ? 'default' : 'pointer') + ';font-size:.8rem';
+            if (!disabled) b.addEventListener('click', function () { currentPage = page; render(); });
+            return b;
+        }
+        paginEl.appendChild(mkBtn('‹', currentPage - 1, false, currentPage === 1));
+        for (var p = 1; p <= pages; p++) {
+            paginEl.appendChild(mkBtn(p, p, p === currentPage, false));
+        }
+        paginEl.appendChild(mkBtn('›', currentPage + 1, false, currentPage === pages));
+    }
+
+    /* lupa toggle */
+    var btnToggle = document.getElementById('btn-search-toggle');
+    var inputSearch = document.getElementById('collab-search');
+    if (btnToggle && inputSearch) {
+        btnToggle.addEventListener('click', function () {
+            var open = inputSearch.style.display === 'none';
+            inputSearch.style.display = open ? '' : 'none';
+            if (open) { inputSearch.focus(); inputSearch.select(); }
+            else { inputSearch.value = ''; searchTerm = ''; currentPage = 1; render(); }
+        });
+        inputSearch.addEventListener('input', function () {
+            searchTerm = inputSearch.value.trim().toLowerCase();
+            currentPage = 1;
+            render();
+        });
+        inputSearch.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { btnToggle.click(); }
+        });
+    }
+
+    render();
+})();
+
+/* Toggle painel de edição do card */
+function toggleCardEdit(id) {
+    var panel = document.getElementById('edit-panel-' + id);
+    if (!panel) return;
+    var isHidden = panel.hidden;
+    panel.hidden = !isHidden;
+    /* fecha o menu ao abrir o painel */
+    var menu = document.getElementById('card-menu-' + id);
+    if (menu) menu.classList.remove('open');
+    var btn = document.querySelector('[data-card="' + id + '"]');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+/* Dropdowns dos cards de colaborador */
+(function () {
+    function closeAll(except) {
+        document.querySelectorAll('.card-menu.open').forEach(function (m) {
+            if (m !== except) {
+                m.classList.remove('open');
+                var id = m.id.replace('card-menu-', '');
+                var b = document.querySelector('[data-card="' + id + '"]');
+                if (b) b.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+
+    document.querySelectorAll('.card-menu-btn').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var id   = btn.getAttribute('data-card');
+            var menu = document.getElementById('card-menu-' + id);
+            var open = menu.classList.toggle('open');
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open) closeAll(menu);
+        });
+    });
+
+    document.addEventListener('click', function () { closeAll(null); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeAll(null);
+    });
+})();
+
+(function () {
+    var btn  = document.getElementById('admin-menu-btn');
+    var menu = document.getElementById('admin-menu');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = menu.classList.toggle('open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('click', function () {
+        menu.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            menu.classList.remove('open');
+            btn.setAttribute('aria-expanded', 'false');
+        }
+    });
+})();
 </script>
 {% endblock %}

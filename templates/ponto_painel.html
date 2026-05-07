@@ -329,13 +329,6 @@
                            style="width:100%">
                 </div>
                 <button class="btn" type="submit">Salvar</button>
-                {% if collab.whatsapp %}
-                <button class="btn" type="submit" name="whatsapp" value=""
-                        style="background:#dc2626;border-color:#dc2626"
-                        onclick="return confirm('Remover número de WhatsApp?')">
-                    &#10006; Remover
-                </button>
-                {% endif %}
             </div>
             {% if collab.whatsapp %}
             <p style="font-size:.8rem;color:#059669;margin-top:.5rem">
@@ -343,6 +336,18 @@
             </p>
             {% endif %}
         </form>
+        {% if collab.whatsapp %}
+        <form method="post" action="{{ url_for('colaborador_salvar_whatsapp', collab_id=collab.id) }}"
+              style="margin-top:.4rem">
+            <input type="hidden" name="month" value="{{ '%s-%02d'|format(year, month) }}">
+            <input type="hidden" name="whatsapp" value="">
+            <button class="btn" type="submit"
+                    style="background:#dc2626;border-color:#dc2626"
+                    onclick="return confirm('Remover número de WhatsApp?')">
+                &#10006; Remover
+            </button>
+        </form>
+        {% endif %}
         {% if collab.whatsapp %}
         <form method="post" action="{{ url_for('colaborador_whatsapp_teste', collab_id=collab.id) }}"
               style="margin-top:.5rem">
@@ -465,22 +470,43 @@
 
 </div>
 
-<!-- ─── LEGENDA DA REGRA DA CISÃO ────────────────────────────────────────── -->
+<!-- ─── ENTENDA COMO FUNCIONA ───────────────────────────────────────────── -->
 <div style="max-width:860px;margin:1.5rem auto 2rem;padding:0 1rem">
     <details>
         <summary style="cursor:pointer;font-size:.85rem;color:var(--text-muted)">
-            &#128712; Entenda a Regra da Cisão
+            &#128712; Entenda como funciona
         </summary>
-        <div style="font-size:.82rem;color:var(--text-muted);line-height:1.6;margin-top:.75rem;
-                    background:rgba(255,255,255,.04);padding:1rem;border-radius:8px">
-            <p><strong>Jornada Padrão:</strong> 7:20h (7 horas e 20 minutos) por dia.</p>
-            <p><strong>H Normais:</strong> Acumula até 7:20h por dia em dias regulares (segunda a sábado, exceto feriados).</p>
-            <p><strong>Folga Bruta:</strong> Em domingos ou feriados trabalhados, as horas (até 7:20h) vão para o banco de folgas.</p>
-            <p><strong>R$ Extra:</strong> Todo tempo além de 7:20h em qualquer dia gera valor financeiro:
-                <em>minutos_excedentes × (diária ÷ 440)</em>.</p>
-            <p><strong>Desconto de Extras:</strong> Bloqueado se o saldo de R$ Extra for menor que o solicitado.</p>
+        <div style="font-size:.82rem;color:var(--text-muted);line-height:1.7;margin-top:.75rem;
+                    background:rgba(255,255,255,.04);padding:1rem 1.25rem;border-radius:8px">
+
+            <p style="font-size:.88rem;font-weight:700;margin:.75rem 0 .35rem">&#128247; Como registrar um ponto com comprovante</p>
+            <p>Acesse o menu e toque em <strong>Registrar Ponto</strong>. Você será direcionado para a câmera. Aponte para o comprovante de ponto (folha, display ou qualquer registro visível) e aguarde o reconhecimento automático. Confirme os dados exibidos e o ponto será salvo.</p>
+
+            <p style="font-size:.88rem;font-weight:700;margin:.75rem 0 .35rem">&#127774; Como registrar uma folga</p>
+            <p>Folgas são geradas automaticamente quando você trabalha em um <strong>domingo ou feriado</strong> — cada dia trabalhado nesses dias acumula até 7:20h no seu banco de folgas. Para usar uma folga, acesse <strong>Ações ▾ → Registrar Uso de Folga (7:20h = 1 dia)</strong> no seu painel.</p>
+
+            <p style="font-size:.88rem;font-weight:700;margin:.75rem 0 .35rem">&#128200; O que cada campo do painel significa</p>
+
+            <p><strong>H Bruto:</strong> Total de horas registradas no mês, sem nenhum desconto.</p>
+            <p><strong>H Normais:</strong> Horas que contam como jornada regular — acumula até 7:20h por dia (segunda a sábado, exceto feriados).</p>
+            <p><strong>Folga Bruta:</strong> Horas trabalhadas em domingos ou feriados (até 7:20h por dia) que viraram banco de folgas.</p>
+            <p><strong>R$ Extra (mês):</strong> Valor em reais gerado pelas horas <em>além</em> de 7:20h em qualquer dia do mês atual.</p>
+            <p><strong>Meta do Mês:</strong> Total de horas que você deveria cumprir no mês (dias úteis × 7:20h).</p>
+            <p><strong>Faltantes:</strong> Diferença entre a meta e o que já foi cumprido. Quando zerado, aparece <em>✓ Meta atingida</em>.</p>
+            <p><strong>Jornadas Incompletas:</strong> Dias com entrada registrada mas sem saída fechada — ficam suspensos no cálculo até serem corrigidos.</p>
+
+            <p style="font-size:.88rem;font-weight:700;margin:.75rem 0 .35rem">&#9201; Saldos Acumulados (total histórico)</p>
+            <p><strong>Banco de Horas Extras — Acumulado:</strong> Soma de todas as horas extras geradas desde o início.</p>
+            <p><strong>Banco de Horas Extras — Descontado:</strong> Horas já devolvidas ao empregador via solicitação de desconto.</p>
+            <p><strong>Banco de Horas Extras — Saldo em R$:</strong> Valor financeiro das horas extras ainda não descontadas.</p>
+            <p><strong>Banco de Folgas — Acumuladas:</strong> Total de dias de folga gerados por domingos e feriados trabalhados.</p>
+            <p><strong>Banco de Folgas — Utilizadas:</strong> Dias de folga já usados.</p>
+            <p><strong>Banco de Folgas — Saldo Disponível:</strong> Dias de folga que ainda podem ser utilizados.</p>
+
+            <p style="font-size:.88rem;font-weight:700;margin:.75rem 0 .35rem">&#8505; Regras gerais</p>
+            <p><strong>Jornada padrão:</strong> 7:20h (440 minutos) por dia.</p>
+            <p><strong>Desconto de Extras:</strong> Bloqueado se o saldo de R$ Extra for menor que o valor solicitado.</p>
             <p><strong>Uso de Folga:</strong> Bloqueado se o saldo for menor que 7:20h (1 dia completo).</p>
-            <p><strong>Jornada Incompleta:</strong> Dias com batida de abertura sem fechamento ficam suspensos no cálculo.</p>
         </div>
     </details>
 </div>

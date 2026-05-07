@@ -728,6 +728,16 @@ def _calc_meta_mensal(year: int, month: int) -> int:
     return meta_min
 
 
+def _calc_meta_semanal(iso_year: int, iso_week: int) -> int:
+    """Calcula a meta de horas da semana (seg-sab) em minutos, excluindo feriados cadastrados."""
+    meta_min = 0
+    for weekday in range(1, 7):  # 1=segunda, 6=sábado
+        d = date.fromisocalendar(iso_year, iso_week, weekday)
+        if not is_feriado(d):
+            meta_min += JORNADA_MIN
+    return meta_min
+
+
 def monthly_summary(
     year: int | None = None,
     month: int | None = None,
@@ -774,6 +784,9 @@ def monthly_summary(
         bucket["role"] = collab.role or "-"
         bucket["collab_id"] = collab.id
         bucket["folga_days"] = collab.folga_days
+        bucket["active"] = collab.active
+        bucket["daily_rate"] = collab.daily_rate
+        bucket["ponto_password_hash"] = collab.ponto_password_hash
         hours_value = Decimal(entry.hours)
         if hours_value >= 0:
             bucket["positive"] += hours_value
@@ -782,7 +795,30 @@ def monthly_summary(
         bucket["net"] = bucket["positive"] - bucket["negative"]
         bucket["days"] = int(max(bucket["net"], Decimal("0")) * 60 // 440)
 
-    cards = sorted(grouped.values(), key=lambda item: item["name"].lower())
+    # Ensure all collaborators appear even with no entries this month
+    all_collabs = Collaborator.query.order_by(Collaborator.active.desc(), Collaborator.name.asc()).all()
+    for collab in all_collabs:
+        if collab.id not in grouped:
+            grouped[collab.id] = {
+                "name": collab.name,
+                "role": collab.role or "-",
+                "collab_id": collab.id,
+                "positive": Decimal("0"),
+                "negative": Decimal("0"),
+                "net": Decimal("0"),
+                "days": 0,
+                "folga_days": collab.folga_days,
+                "active": collab.active,
+                "daily_rate": collab.daily_rate,
+                "ponto_password_hash": collab.ponto_password_hash,
+            }
+        else:
+            # fill fields that might be missing if collab appeared only via entries
+            grouped[collab.id].setdefault("active", collab.active)
+            grouped[collab.id].setdefault("daily_rate", collab.daily_rate)
+            grouped[collab.id].setdefault("ponto_password_hash", collab.ponto_password_hash)
+
+    cards = sorted(grouped.values(), key=lambda item: (not item["active"], item["name"].lower()))
 
     total_positive = sum((c["positive"] for c in cards), Decimal("0"))
     total_negative = sum((c["negative"] for c in cards), Decimal("0"))
@@ -1254,6 +1290,46 @@ def use_folga(collaborator_id: int):
     return redirect(url_for("index"))
 
 
+@app.post("/collaborators/<int:collaborator_id>/grant-folga")
+@login_required
+def grant_folga(collaborator_id: int):
+    """Credita 1 dia de folga manualmente (apenas admin), sem exigir comprovante."""
+    collab = db.session.get(Collaborator, collaborator_id)
+    if not collab:
+        flash("Colaborador nao encontrado.", "danger")
+        return redirect(url_for("index"))
+
+    justificativa = (request.form.get("justificativa") or "").strip()
+    if not justificativa:
+        flash("Justificativa obrigatoria para concessao manual de folga.", "warning")
+        return redirect(url_for("collaborator_history", collaborator_id=collaborator_id))
+
+    date_raw = (request.form.get("grant_date") or "").strip()
+    try:
+        grant_date = datetime.strptime(date_raw, "%Y-%m-%d").date()
+    except ValueError:
+        grant_date = date.today()
+
+    note = f"Crédito manual (admin): {justificativa}"
+    db.session.add(
+        HourEntry(
+            collaborator_id=collaborator_id,
+            entry_date=grant_date,
+            hours=Decimal("0"),
+            note=note,
+            gives_folga=True,
+        )
+    )
+    collab.folga_days += 1
+    db.session.commit()
+    flash(
+        f"1 dia de folga creditado a {collab.name}. "
+        f"Saldo atual: {collab.folga_days} dia(s).",
+        "success",
+    )
+    return redirect(url_for("collaborator_history", collaborator_id=collaborator_id))
+
+
 @app.get("/collaborators/<int:collaborator_id>/history")
 def collaborator_history(collaborator_id: int):
     """Exibe o historico completo de lancamentos de um colaborador."""
@@ -1308,6 +1384,7 @@ def collaborator_history(collaborator_id: int):
             weeks.append({
                 "entries": wk_entries,
                 "label": f"{d_min.strftime('%d/%m')} – {d_max.strftime('%d/%m')}",
+                "wk_key": wk_key,
             })
 
     sel_week_idx = 0
@@ -1376,6 +1453,68 @@ def collaborator_history(collaborator_id: int):
         else Decimal("0")
     )
 
+    # ── Indicadores de ponto (Regra da Cisão) para o mês selecionado ──
+    ponto_year  = int(sel_month_key[:4])  if sel_month_key else date.today().year
+    ponto_month = int(sel_month_key[5:7]) if sel_month_key else date.today().month
+
+    ind_mes   = _calc_ponto_indicadores(collaborator_id, ponto_year, ponto_month)
+    ind_total = _calc_ponto_indicadores(collaborator_id)
+
+    # Meta e faltantes da semana selecionada (seg-sab, excluindo feriados)
+    if week_data.get("wk_key"):
+        _wk_iso_year, _wk_iso_week = week_data["wk_key"]
+        meta_semana_min = _calc_meta_semanal(_wk_iso_year, _wk_iso_week)
+        _wk_monday   = date.fromisocalendar(_wk_iso_year, _wk_iso_week, 1)
+        _wk_saturday = date.fromisocalendar(_wk_iso_year, _wk_iso_week, 6)
+        _wk_punches = (
+            PunchRecord.query
+            .filter(
+                PunchRecord.collaborator_id == collaborator_id,
+                PunchRecord.punch_date >= _wk_monday,
+                PunchRecord.punch_date <= _wk_saturday,
+            )
+            .order_by(PunchRecord.punch_date.asc(), PunchRecord.punch_time.asc())
+            .all()
+        )
+        _wk_days: dict[date, list] = {}
+        for _p in _wk_punches:
+            _wk_days.setdefault(_p.punch_date, []).append(_p)
+        _wk_worked_min = 0
+        for _wd, _wdp in _wk_days.items():
+            _wr = _process_punches_dia(_wdp)
+            if not _wr["incompleto"]:
+                _wk_worked_min += min(_wr["minutos"], JORNADA_MIN)
+        # Folgas usadas na semana em dias úteis reduzem a meta efetiva
+        _wk_folgas = PontoAjuste.query.filter(
+            PontoAjuste.collaborator_id == collaborator_id,
+            PontoAjuste.tipo == "uso_folga",
+            PontoAjuste.data_referencia >= _wk_monday,
+            PontoAjuste.data_referencia <= _wk_saturday,
+        ).all()
+        _wk_folgas_uteis_min = sum(
+            JORNADA_MIN for a in _wk_folgas
+            if a.data_referencia and not is_folga_ou_domingo(a.data_referencia)
+        )
+        faltantes_semana_min = max(0, meta_semana_min - _wk_worked_min - _wk_folgas_uteis_min)
+    else:
+        meta_semana_min = 0
+        faltantes_semana_min = 0
+
+    _ms = date(ponto_year, ponto_month, 1)
+    _me = date(ponto_year + 1, 1, 1) if ponto_month == 12 else date(ponto_year, ponto_month + 1, 1)
+    feriados_mes = Holiday.query.filter(
+        Holiday.holiday_date >= _ms,
+        Holiday.holiday_date <  _me,
+    ).order_by(Holiday.holiday_date.asc()).all()
+
+    ajustes = (
+        PontoAjuste.query.filter_by(collaborator_id=collaborator_id)
+        .order_by(PontoAjuste.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    sched_turnos = _get_schedule(collab)
+
     return render_template(
         "collab_history.html",
         collab=collab,
@@ -1397,6 +1536,18 @@ def collaborator_history(collaborator_id: int):
         next_week=next_week,
         month_pos=month_pos,
         month_neg=month_neg,
+        # ponto indicators
+        ind_mes=ind_mes,
+        ind_total=ind_total,
+        meta_semana_min=meta_semana_min,
+        faltantes_semana_min=faltantes_semana_min,
+        feriados_mes=feriados_mes,
+        ajustes=ajustes,
+        sched_turnos=sched_turnos,
+        fmt_min=_fmt_min_hhmm,
+        JORNADA_MIN=JORNADA_MIN,
+        ponto_year=ponto_year,
+        ponto_month=ponto_month,
     )
 
 
@@ -2399,68 +2550,13 @@ def feriado_delete(feriado_id: int):
 @app.get("/colaborador/<int:collab_id>/painel")
 @ponto_required
 def colaborador_painel(collab_id: int):
-    """Painel de indicadores de ponto com Regra da Cisão."""
-    collab = db.session.get(Collaborator, collab_id)
-    if not collab:
-        flash("Colaborador não encontrado.", "danger")
-        return redirect(url_for("ponto_camera"))
-
+    """Redireciona para o histórico unificado (painel foi integrado ao histórico)."""
     sess_id = _flask_session.get("ponto_collab_id")
     if not current_user.is_authenticated and sess_id != collab_id:
         flash("Acesso não autorizado.", "danger")
         return redirect(url_for("ponto_camera"))
-
-    year, month = _parse_month_param(request.args.get("month"))
-
-    # Indicadores do mês selecionado
-    ind_mes = _calc_ponto_indicadores(collab_id, year, month)
-    # Saldo acumulado (all-time) para travas de desconto e folga
-    ind_total = _calc_ponto_indicadores(collab_id)
-
-    meta_min = _calc_meta_mensal(year, month)
-    h_cumprido_min = ind_mes["h_normais_min"] + ind_mes["folga_bruto_min"]
-    faltantes_min = max(0, meta_min - h_cumprido_min)
-
-    month_start = date(year, month, 1)
-    month_end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
-    feriados_mes = Holiday.query.filter(
-        Holiday.holiday_date >= month_start,
-        Holiday.holiday_date < month_end,
-    ).order_by(Holiday.holiday_date.asc()).all()
-
-    prev_m = month - 1 if month > 1 else 12
-    prev_y = year if month > 1 else year - 1
-    next_m = month + 1 if month < 12 else 1
-    next_y = year if month < 12 else year + 1
-
-    # Histórico de ajustes
-    ajustes = (
-        PontoAjuste.query.filter_by(collaborator_id=collab_id)
-        .order_by(PontoAjuste.created_at.desc())
-        .limit(20)
-        .all()
-    )
-
-    return render_template(
-        "ponto_painel.html",
-        collab=collab,
-        ind_mes=ind_mes,
-        ind_total=ind_total,
-        meta_min=meta_min,
-        faltantes_min=faltantes_min,
-        h_cumprido_min=h_cumprido_min,
-        feriados_mes=feriados_mes,
-        ajustes=ajustes,
-        year=year,
-        month=month,
-        month_label=f"{_MESES_PT[month]} {year}",
-        prev_param=f"{prev_y}-{prev_m:02d}",
-        next_param=f"{next_y}-{next_m:02d}",
-        today=date.today().isoformat(),
-        fmt_min=_fmt_min_hhmm,
-        JORNADA_MIN=JORNADA_MIN,
-        sched_turnos=_get_schedule(collab),
-    )
+    month = request.args.get("month", "")
+    return redirect(url_for("collaborator_history", collaborator_id=collab_id, month=month))
 
 
 @app.post("/colaborador/<int:collab_id>/desconto-extra")
@@ -2588,9 +2684,11 @@ def colaborador_usar_folga_ponto(collab_id: int):
     )
 
 
-@app.post("/colaborador/<int:collab_id>/whatsapp")
+@app.route("/colaborador/<int:collab_id>/whatsapp", methods=["GET", "POST"])
 @ponto_required
 def colaborador_salvar_whatsapp(collab_id: int):
+    if request.method == "GET":
+        return redirect(url_for("colaborador_painel", collab_id=collab_id))
     """Salva ou limpa o número de WhatsApp do próprio colaborador."""
     sess_id = _flask_session.get("ponto_collab_id")
     if not current_user.is_authenticated and sess_id != collab_id:
@@ -2610,10 +2708,13 @@ def colaborador_salvar_whatsapp(collab_id: int):
         flash("Número inválido. Informe DDD + número (ex: 11999999999).", "warning")
         return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
 
+    numero_anterior = collab.whatsapp
     collab.whatsapp = numero if numero else None
     db.session.commit()
     if numero:
         flash(f"WhatsApp {numero_raw} salvo. Você receberá notificações de ponto.", "success")
+        if numero != numero_anterior:
+            wz.boas_vindas_whatsapp(collab.name, numero)
     else:
         flash("Número de WhatsApp removido.", "info")
     return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
@@ -2722,6 +2823,19 @@ def api_ponto_indicadores(collab_id: int):
     meta_min = _calc_meta_mensal(year, month)
     h_cumprido = ind["h_normais_min"] + ind["folga_bruto_min"]
 
+    _api_ms = date(year, month, 1)
+    _api_me = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+    _api_folgas = PontoAjuste.query.filter(
+        PontoAjuste.collaborator_id == collab_id,
+        PontoAjuste.tipo == "uso_folga",
+        PontoAjuste.data_referencia >= _api_ms,
+        PontoAjuste.data_referencia < _api_me,
+    ).all()
+    _api_folgas_uteis_min = sum(
+        JORNADA_MIN for a in _api_folgas
+        if a.data_referencia and not is_folga_ou_domingo(a.data_referencia)
+    )
+
     return jsonify(
         {
             "h_bruto": _fmt_min_hhmm(ind["h_bruto_min"]),
@@ -2732,7 +2846,7 @@ def api_ponto_indicadores(collab_id: int):
             "r_extra_valor": float(ind["r_extra_valor"]),
             "dias_incompletos": ind["dias_incompletos"],
             "meta_mensal": _fmt_min_hhmm(meta_min),
-            "faltantes": _fmt_min_hhmm(max(0, meta_min - h_cumprido)),
+            "faltantes": _fmt_min_hhmm(max(0, meta_min - h_cumprido - _api_folgas_uteis_min)),
         }
     )
 
