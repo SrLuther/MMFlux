@@ -3,6 +3,7 @@
 ## [0.10.2] - 2026-05-07
 
 ### WhatsApp Service
+
 - feat: serviço Node.js (`whatsapp-service/`) com Baileys — integração real com WhatsApp via QR Code.
 - feat: `notify.py` — função `boas_vindas_whatsapp()` envia mensagem de boas-vindas ao colaborador ao cadastrar número, com caminho de navegação completo para remoção.
 - feat: mensagem de boas-vindas enviada apenas quando o número muda (evita reenvio ao salvar o mesmo número).
@@ -12,6 +13,7 @@
 - feat: `deploy/install.sh` atualizado com instalação do Node 20, dependências e serviço WhatsApp.
 
 ### Painel do colaborador
+
 - feat: link "📷 Registrar Ponto" adicionado ao dropdown do colaborador na navbar (`base.html`).
 - feat: seção "Entenda como funciona" expandida em `collab_history.html` e `ponto_painel.html` — explica todos os campos, como registrar ponto, como funciona folga, domingo e cálculo de faltantes.
 - fix: `faltantes_semana_min` agora desconta 7:20h por cada dia de folga usada (`uso_folga`) em dia útil da semana exibida.
@@ -21,6 +23,7 @@
 - fix: botão `+ Turno extra` nos horários de trabalho agora visível (cor `btn-ghost` corrigida fora de contexto de painel claro).
 
 ### Painel administrativo (index)
+
 - feat: bloco "Colaboradores" removido — cards de "Resumo por colaborador" agora exibem badge Ativo/Inativo, menu `⋯` (Histórico, Editar, Alternar status) e painel de edição inline (nome, função, diária, senha, admin).
 - feat: todos os colaboradores aparecem no resumo mesmo sem lançamentos no mês selecionado; ordenados por ativos primeiro.
 - feat: formulário de cadastro de novo colaborador movido para o painel de resumo.
