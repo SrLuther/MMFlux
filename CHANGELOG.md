@@ -2,16 +2,30 @@
 
 ## [0.10.2] - 2026-05-07
 
-- feat: painel index unificado — bloco "Colaboradores" removido; cards de "Resumo por colaborador" agora exibem badge Ativo/Inativo, menu `⋯` (Histórico, Editar, Alternar status) e painel de edição inline (nome, função, diária, senha, admin).
-- feat: todos os colaboradores aparecem no resumo mesmo sem lançamentos no mês selecionado.
-- feat: formulário de cadastro de novo colaborador movido para o painel de resumo.
-- feat: busca por nome com lupa expansível abaixo do título do painel — filtra cards em tempo real.
-- feat: paginação client-side nos cards (até 10 por página) com botões ‹ 1 2 3 ›.
-- feat: botão `+ Turno extra` nos horários de trabalho agora visível (cor corrigida de `btn-ghost`).
-- fix: `faltantes_semana_min` no histórico do colaborador agora desconta 7:20h por cada dia de folga usada (`uso_folga`) em dia útil da semana exibida.
+### WhatsApp Service
+- feat: serviço Node.js (`whatsapp-service/`) com Baileys — integração real com WhatsApp via QR Code.
+- feat: `notify.py` — função `boas_vindas_whatsapp()` envia mensagem de boas-vindas ao colaborador ao cadastrar número, com caminho de navegação completo para remoção.
+- feat: mensagem de boas-vindas enviada apenas quando o número muda (evita reenvio ao salvar o mesmo número).
+- fix: botão "✖ Remover" WhatsApp enviava número salvo em vez de remover — separado em dois formulários independentes (salvar e remover) em `collab_history.html` e `ponto_painel.html`.
+- fix: rota `/colaborador/<id>/whatsapp` retornava 405 em GET (refresh) — alterada para aceitar GET+POST, com GET redirecionando para o painel.
+- feat: `deploy/mmflux-whatsapp.service` — unit systemd para o serviço WhatsApp.
+- feat: `deploy/install.sh` atualizado com instalação do Node 20, dependências e serviço WhatsApp.
+
+### Painel do colaborador
+- feat: link "📷 Registrar Ponto" adicionado ao dropdown do colaborador na navbar (`base.html`).
+- feat: seção "Entenda como funciona" expandida em `collab_history.html` e `ponto_painel.html` — explica todos os campos, como registrar ponto, como funciona folga, domingo e cálculo de faltantes.
+- fix: `faltantes_semana_min` agora desconta 7:20h por cada dia de folga usada (`uso_folga`) em dia útil da semana exibida.
 - fix: mesmo desconto aplicado na API `/api/ponto/indicadores`.
-- fix: texto explicativo "Meta do Mês" corrigido para "Meta da Semana" com descrição dos dias considerados.
-- fix: "H Normais" agora informa que domingos não entram na contagem (geram direito a folga).
+- fix: texto explicativo "Meta do Mês" corrigido para "Meta da Semana" com descrição correta dos dias considerados.
+- fix: "H Normais" agora informa que domingos não entram na contagem (geram direito a folga, não horas normais).
+- fix: botão `+ Turno extra` nos horários de trabalho agora visível (cor `btn-ghost` corrigida fora de contexto de painel claro).
+
+### Painel administrativo (index)
+- feat: bloco "Colaboradores" removido — cards de "Resumo por colaborador" agora exibem badge Ativo/Inativo, menu `⋯` (Histórico, Editar, Alternar status) e painel de edição inline (nome, função, diária, senha, admin).
+- feat: todos os colaboradores aparecem no resumo mesmo sem lançamentos no mês selecionado; ordenados por ativos primeiro.
+- feat: formulário de cadastro de novo colaborador movido para o painel de resumo.
+- feat: busca por nome com lupa expansível abaixo do título do painel — filtra cards em tempo real sem reload.
+- feat: paginação client-side nos cards (até 10 por página) com botões ‹ 1 2 3 ›.
 
 ## [0.10.1] - 2026-05-07
 
