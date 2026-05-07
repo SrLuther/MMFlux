@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.10.1] - 2026-05-07
+- fix: Service Worker reescrito — páginas HTML sempre buscadas da rede (network-only para navegação), assets estáticos usam cache-first com atualização em background. Elimina tela branca após deploys.
+- chore: cache SW atualizado para `mmflux-v7`, versão CSS atualizada para `?v=7`.
+
 ## [0.10.0] - 2026-05-06
 - feat: painel do colaborador — bloco de opções reformulado em card unificado com linhas separadoras e chevron animado.
 - feat: colaborador pode alterar a própria senha de ponto diretamente no painel.

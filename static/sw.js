@@ -1,8 +1,7 @@
-const CACHE = "mmflux-v6";
+const CACHE = "mmflux-v7";
 const OFFLINE = "/offline";
 
 const PRECACHE = [
-  "/",
   OFFLINE,
   "/static/styles.css",
   "/static/manifest.json",
@@ -26,13 +25,36 @@ self.addEventListener("activate", e => {
 
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
-  e.respondWith(
-    fetch(e.request)
-      .then(res => {
-        const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-        return res;
+
+  const url = new URL(e.request.url);
+  const isNavigation = e.request.mode === "navigate";
+  const isStatic = url.pathname.startsWith("/static/");
+
+  if (isNavigation) {
+    // Páginas HTML: sempre busca da rede — nunca serve HTML cacheado
+    // Só exibe offline se realmente sem conexão
+    e.respondWith(
+      fetch(e.request).catch(() =>
+        caches.match(OFFLINE)
+      )
+    );
+    return;
+  }
+
+  if (isStatic) {
+    // Assets estáticos: cache-first com atualização em background
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        const network = fetch(e.request).then(res => {
+          caches.open(CACHE).then(c => c.put(e.request, res.clone()));
+          return res;
+        });
+        return cached || network;
       })
-      .catch(() => caches.match(e.request).then(r => r || caches.match(OFFLINE)))
-  );
+    );
+    return;
+  }
+
+  // Demais requisições (API, etc): network-only
+  e.respondWith(fetch(e.request));
 });
