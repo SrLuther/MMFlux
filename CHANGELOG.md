@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.10.0] - 2026-05-06
+- feat: painel do colaborador — bloco de opções reformulado em card unificado com linhas separadoras e chevron animado.
+- feat: colaborador pode alterar a própria senha de ponto diretamente no painel.
+- feat: recuperação de senha via WhatsApp — senha temporária de 6 caracteres gerada com `secrets` e enviada ao número cadastrado.
+- feat: seção "Notificações WhatsApp" no painel do colaborador — salvar/remover número e enviar mensagem de teste.
+- feat: horários de trabalho em layout 2×2 (Entrada|Saída Intervalo / Volta Intervalo|Saída Final).
+- feat: botão "Meu Painel" na tela de captura de ponto agora visível (cor sólida).
+- feat: botões de paginação (Anterior/Próxima) na listagem de registros agora visíveis.
+- feat: tela de seleção de acesso (Administrador/Colaborador) com descrições legíveis.
+- chore: arquivos de desenvolvimento `seed_ponto_test.py` e `_ocr_test.py` removidos do repositório.
+
 ## [0.9.1] - 2026-05-02
 - fix: nome do mês exibido em PT-BR ("Maio" em vez de "May").
 - feat: seletor de meses do resumo reformulado — botões coloridos clicáveis (verde = incluso, vermelho = excluído) sem checkboxes.

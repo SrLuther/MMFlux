@@ -4,20 +4,22 @@
 
 from __future__ import annotations
 
+import calendar
+import json
+import os
 import re
+import secrets
+import string
+import threading
+import time
+import uuid
 from collections import defaultdict
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-import os
-import uuid
+from functools import wraps
 from typing import Any, ClassVar, cast
 
-import calendar
-
-MESES_PT = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-
-from functools import wraps
+from dotenv import load_dotenv
 from flask import (
     Flask,
     flash,
@@ -37,13 +39,16 @@ from flask_login import (  # type: ignore[import-untyped]
     login_user,
     logout_user,
 )
-from dotenv import load_dotenv
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func, text
+from sqlalchemy.orm import DeclarativeBase
+from werkzeug.security import check_password_hash, generate_password_hash
+
 import notify as wz
 import ponto_ocr
-from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import func, text
-from werkzeug.security import check_password_hash, generate_password_hash
+
+MESES_PT = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
 
 class Base(DeclarativeBase):
@@ -66,18 +71,31 @@ DB_PATH = os.path.join(DB_DIR, "fluxos_zero.db")
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "ponto")
 _ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".jfif"}
 
+# Constante de jornada padrão: 7h20 = 440 minutos
+JORNADA_MIN = 440
+
+# ---------------------------------------------------------------------------
+# Alertas agendados por horário definido pelo colaborador
+# ---------------------------------------------------------------------------
+# Chave: (collab_id, date_iso, punch_type_esperado)
+# Valor: {fire_at, whatsapp, collab_name, expected_time, tipo, data_str}
+_pending_alerts: dict[tuple, dict] = {}
+_pending_alerts_lock = threading.Lock()
+
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SECRET_KEY"] = os.getenv("FLUXOS_SECRET", "trocar-esta-chave")
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15 MB
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 
 db = SQLAlchemy(model_class=Base)
 db.init_app(app)
 login_manager = LoginManager(app)
-login_manager.login_view = "login"
+login_manager.login_view = "login"  # type: ignore[assignment]
 Base.query = db.session.query_property()
+
 
 
 @app.template_filter("hhmm")
@@ -136,6 +154,8 @@ class Collaborator(Base):
     ponto_password_hash = db.Column(db.String(255), nullable=True)
     active = db.Column(db.Boolean, nullable=False, default=True)
     folga_days = db.Column(db.Integer, nullable=False, default=0)
+    whatsapp = db.Column(db.String(30), nullable=True)
+    schedule_json = db.Column(db.Text, nullable=True)
     created_at = db.Column(
         db.DateTime,
         default=datetime.utcnow,
@@ -198,6 +218,12 @@ class PunchRecord(Base):
     ad_key = db.Column(db.String(600), nullable=True)
     image_filename = db.Column(db.String(255), nullable=True)
     processed = db.Column(db.Boolean, nullable=False, default=False)
+    # Tipo da batida: entrada|intervalo_saida|intervalo_retorno|saida_final|extra
+    punch_type = db.Column(db.String(30), nullable=True)
+    # Origem: automatico (OCR/camera) | manual | admin
+    origin = db.Column(db.String(20), nullable=True, default='automatico')
+    # Marcado como direito a folga pelo colaborador/admin
+    gives_folga = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(
         db.DateTime,
         default=datetime.utcnow,
@@ -217,6 +243,42 @@ class Setting(Base):
 
     key = db.Column(db.String(60), primary_key=True)
     value = db.Column(db.String(255), nullable=False)
+
+
+class Holiday(Base):
+    """Feriado cadastrado pelo administrador."""
+
+    __tablename__ = "holiday"
+
+    id = db.Column(db.Integer, primary_key=True)
+    holiday_date = db.Column(db.Date, nullable=False, unique=True, index=True)
+    descricao = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class PontoAjuste(Base):
+    """Ajuste de saldo de ponto: desconto de horas extras ou uso de folga."""
+
+    __tablename__ = "ponto_ajuste"
+
+    id = db.Column(db.Integer, primary_key=True)
+    collaborator_id = db.Column(
+        db.Integer, db.ForeignKey("collaborator.id"), nullable=False, index=True
+    )
+    # 'desconto_extra' | 'uso_folga'
+    tipo = db.Column(db.String(20), nullable=False)
+    # Minutos descontados (para desconto_extra) ou JORNADA_MIN (para uso_folga)
+    minutos = db.Column(db.Integer, nullable=False, default=0)
+    data_referencia = db.Column(db.Date, nullable=True)
+    obs = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    # 'colaborador' | 'admin'
+    criado_por = db.Column(db.String(20), nullable=False, default='colaborador')
+
+    collaborator = db.relationship(
+        "Collaborator",
+        backref=db.backref("ajustes_ponto", lazy=True),
+    )
 
 
 @login_manager.user_loader
@@ -307,6 +369,41 @@ def ensure_schema() -> None:
         )
         db.session.commit()
 
+    # collaborator.whatsapp (adicionado em v1.0.0)
+    if "whatsapp" not in col_names:
+        db.session.execute(
+            text("ALTER TABLE collaborator ADD COLUMN whatsapp VARCHAR(30)")
+        )
+        db.session.commit()
+
+    # collaborator.schedule_json (adicionado em v1.0.0)
+    if "schedule_json" not in col_names:
+        db.session.execute(
+            text("ALTER TABLE collaborator ADD COLUMN schedule_json TEXT")
+        )
+        db.session.commit()
+
+    # punch_record.punch_type (adicionado em v1.0.0)
+    if pr_col_names and "punch_type" not in pr_col_names:
+        db.session.execute(
+            text("ALTER TABLE punch_record ADD COLUMN punch_type VARCHAR(30)")
+        )
+        db.session.commit()
+
+    # punch_record.origin (adicionado em v1.0.0)
+    if pr_col_names and "origin" not in pr_col_names:
+        db.session.execute(
+            text("ALTER TABLE punch_record ADD COLUMN origin VARCHAR(20) DEFAULT 'automatico'")
+        )
+        db.session.commit()
+
+    # punch_record.gives_folga (adicionado em v1.1.0)
+    if pr_col_names and "gives_folga" not in pr_col_names:
+        db.session.execute(
+            text("ALTER TABLE punch_record ADD COLUMN gives_folga BOOLEAN NOT NULL DEFAULT 0")
+        )
+        db.session.commit()
+
 
 def suggest_ponto_password(name: str) -> str:
     """Sugere senha de ponto: 1a letra maiuscula + posicoes alfabeticas ate 4-5 digitos.
@@ -342,6 +439,293 @@ def get_setting(key: str, default: str = "") -> str:
     """Retorna o valor de uma configuracao persistida no banco."""
     s = db.session.get(Setting, key)
     return s.value if s else default
+
+
+# ---------------------------------------------------------------------------
+# Engine de cálculo de ponto — Regra da Cisão (Blocos 3, 4 e 5)
+# ---------------------------------------------------------------------------
+
+def _fmt_min_hhmm(minutos: int) -> str:
+    """Formata minutos para H:MM (ex: 440 → '7:20')."""
+    sign = "-" if minutos < 0 else ""
+    minutos = abs(int(minutos))
+    h, m = divmod(minutos, 60)
+    return f"{sign}{h}:{m:02d}"
+
+
+def is_feriado(d: date) -> bool:
+    """Verifica se a data é um feriado cadastrado."""
+    return db.session.query(Holiday).filter_by(holiday_date=d).count() > 0
+
+
+def is_folga_ou_domingo(d: date) -> bool:
+    """Verifica se a data é domingo ou feriado (gera direito a folga)."""
+    return d.weekday() == 6 or is_feriado(d)
+
+
+def _process_punches_dia(punches: list) -> dict:
+    """Processa os registros de ponto do dia e retorna indicadores.
+
+    Para registros com punch_type definido, usa lógica tipada.
+    Para registros legados (punch_type=None), usa emparelhamento cronológico.
+
+    Retorna:
+        minutos: int — total de minutos trabalhados no dia
+        incompleto: bool — True se houver evento de abertura sem fechamento
+        intervalos: list of (time_start, time_end)
+    """
+    punches_sorted = sorted(punches, key=lambda p: p.punch_time)
+    if not punches_sorted:
+        return {"minutos": 0, "incompleto": False, "intervalos": []}
+
+    all_legacy = all(getattr(p, "punch_type", None) is None for p in punches_sorted)
+    intervalos: list[tuple] = []
+    incompleto = False
+
+    if all_legacy:
+        # Emparelhamento cronológico legado: (0,1), (2,3), ...
+        for i in range(0, len(punches_sorted) - 1, 2):
+            t1 = punches_sorted[i].punch_time
+            t2 = punches_sorted[i + 1].punch_time
+            if t2 > t1:
+                intervalos.append((t1, t2))
+        if len(punches_sorted) % 2 != 0:
+            incompleto = True
+    else:
+        by_type: dict[str, list] = {}
+        extra_list: list = []
+        for p in punches_sorted:
+            pt = getattr(p, "punch_type", None) or "extra"
+            if pt == "extra":
+                extra_list.append(p)
+            else:
+                by_type.setdefault(pt, []).append(p)
+
+        entradas = sorted(by_type.get("entrada", []), key=lambda p: p.punch_time)
+        int_saidas = sorted(by_type.get("intervalo_saida", []), key=lambda p: p.punch_time)
+        int_retornos = sorted(by_type.get("intervalo_retorno", []), key=lambda p: p.punch_time)
+        saidas_finais = sorted(by_type.get("saida_final", []), key=lambda p: p.punch_time)
+
+        if entradas:
+            e = entradas[0]
+            if int_saidas:
+                s = int_saidas[0]
+                intervalos.append((e.punch_time, s.punch_time))
+                if int_retornos:
+                    r = int_retornos[0]
+                    if saidas_finais:
+                        sf = saidas_finais[0]
+                        intervalos.append((r.punch_time, sf.punch_time))
+                    else:
+                        incompleto = True
+            elif saidas_finais:
+                # Sem intervalo: entrada → saida_final direto
+                sf = saidas_finais[0]
+                intervalos.append((e.punch_time, sf.punch_time))
+            else:
+                incompleto = True
+
+        # Turnos extras: emparelhamento cronológico
+        for i in range(0, len(extra_list) - 1, 2):
+            t1 = extra_list[i].punch_time
+            t2 = extra_list[i + 1].punch_time
+            if t2 > t1:
+                intervalos.append((t1, t2))
+        if len(extra_list) % 2 != 0:
+            incompleto = True
+
+    ref_date = date.today()
+    total_min = 0
+    for t_start, t_end in intervalos:
+        dt_start = datetime.combine(ref_date, t_start)
+        dt_end = datetime.combine(ref_date, t_end)
+        diff_sec = (dt_end - dt_start).total_seconds()
+        if diff_sec > 0:
+            total_min += int(diff_sec / 60)
+
+    return {"minutos": total_min, "incompleto": incompleto, "intervalos": intervalos}
+
+
+# ---------------------------------------------------------------------------
+# Helpers de horário agendado (schedule_json)
+# ---------------------------------------------------------------------------
+
+def _get_schedule(collab: Any) -> list[dict]:
+    """Retorna lista de turnos do colaborador ou lista vazia."""
+    if not getattr(collab, "schedule_json", None):
+        return []
+    try:
+        return json.loads(collab.schedule_json).get("turnos", [])
+    except Exception:
+        return []
+
+
+def _handle_schedule_alerts(
+    collab: Any,
+    punch_date: date,
+    punch_type: str | None,
+    data_str: str,
+) -> None:
+    """Agenda ou cancela lembretes com base no tipo de batida registrada."""
+    if not collab.whatsapp:
+        return
+    turnos = _get_schedule(collab)
+    if not turnos:
+        return
+    turno = turnos[0]  # turno principal
+    GRACE = 20 * 60   # 20 minutos em segundos
+
+    def _fire_at(hhmm: str) -> float:
+        t = datetime.strptime(hhmm, "%H:%M").time()
+        return datetime.combine(punch_date, t).timestamp() + GRACE
+
+    date_iso = punch_date.isoformat()
+
+    if punch_type == "entrada":
+        # Agenda lembrete de saída para intervalo
+        if turno.get("saida_intervalo"):
+            key = (collab.id, date_iso, "intervalo_saida")
+            with _pending_alerts_lock:
+                _pending_alerts[key] = {
+                    "fire_at": _fire_at(turno["saida_intervalo"]),
+                    "whatsapp": collab.whatsapp,
+                    "collab_name": collab.name,
+                    "expected_time": turno["saida_intervalo"],
+                    "tipo": "intervalo_saida",
+                    "data_str": data_str,
+                }
+
+    elif punch_type == "intervalo_saida":
+        # Cancela lembrete de intervalo (foi registrado a tempo)
+        with _pending_alerts_lock:
+            _pending_alerts.pop((collab.id, date_iso, "intervalo_saida"), None)
+
+    elif punch_type == "intervalo_retorno":
+        # Cancela lembrete de intervalo residual e agenda lembrete de saída final
+        with _pending_alerts_lock:
+            _pending_alerts.pop((collab.id, date_iso, "intervalo_saida"), None)
+        if turno.get("saida_final"):
+            key = (collab.id, date_iso, "saida_final")
+            with _pending_alerts_lock:
+                _pending_alerts[key] = {
+                    "fire_at": _fire_at(turno["saida_final"]),
+                    "whatsapp": collab.whatsapp,
+                    "collab_name": collab.name,
+                    "expected_time": turno["saida_final"],
+                    "tipo": "saida_final",
+                    "data_str": data_str,
+                }
+
+    elif punch_type == "saida_final":
+        # Cancela lembrete de saída final (foi registrado a tempo)
+        with _pending_alerts_lock:
+            _pending_alerts.pop((collab.id, date_iso, "saida_final"), None)
+
+
+def _calc_ponto_indicadores(
+    collab_id: int,
+    year: int | None = None,
+    month: int | None = None,
+) -> dict:
+    """Calcula indicadores dinâmicos de ponto — Regra da Cisão.
+
+    Se year/month forem None, calcula sobre TODOS os registros (saldo acumulado).
+    Retorna dict com todos os indicadores necessários para o painel.
+    """
+    if year is not None and month is not None:
+        month_start: date | None = date(year, month, 1)
+        month_end: date | None = (
+            date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+        )
+    else:
+        month_start = month_end = None
+
+    q = PunchRecord.query.filter(PunchRecord.collaborator_id == collab_id)
+    if month_start and month_end:
+        q = q.filter(
+            PunchRecord.punch_date >= month_start,
+            PunchRecord.punch_date < month_end,
+        )
+    punches = q.order_by(PunchRecord.punch_date.asc(), PunchRecord.punch_time.asc()).all()
+
+    days_punches: dict[date, list] = {}
+    for p in punches:
+        days_punches.setdefault(p.punch_date, []).append(p)
+
+    h_normais_min = 0
+    folga_bruto_min = 0
+    extra_acumulado_min = 0
+    h_bruto_min = 0
+    dias_incompletos: list[date] = []
+    dias_processados = 0
+
+    for d, day_punches in sorted(days_punches.items()):
+        result = _process_punches_dia(day_punches)
+        if result["incompleto"]:
+            dias_incompletos.append(d)
+            continue
+        worked_min = result["minutos"]
+        if worked_min == 0:
+            continue
+        h_bruto_min += worked_min
+        dias_processados += 1
+        normal_today = min(worked_min, JORNADA_MIN)
+        # Dia é folga se: domingo, feriado cadastrado, ou qualquer batida do dia marcada como folga
+        dia_e_folga = (
+            is_folga_ou_domingo(d)
+            or any(getattr(p, "gives_folga", False) for p in day_punches)
+        )
+        if dia_e_folga:
+            folga_bruto_min += normal_today
+        else:
+            h_normais_min += normal_today
+        if worked_min > JORNADA_MIN:
+            extra_acumulado_min += worked_min - JORNADA_MIN
+
+    ajustes = PontoAjuste.query.filter_by(collaborator_id=collab_id).all()
+    desconto_min = sum(a.minutos for a in ajustes if a.tipo == "desconto_extra")
+    folgas_usadas_count = sum(1 for a in ajustes if a.tipo == "uso_folga")
+
+    extra_saldo_min = max(0, extra_acumulado_min - desconto_min)
+    folga_bruto_saldo_min = max(0, folga_bruto_min - folgas_usadas_count * JORNADA_MIN)
+
+    collab = db.session.get(Collaborator, collab_id)
+    global_rate = Decimal(get_setting("daily_rate", "0"))
+    daily_rate = (
+        Decimal(collab.daily_rate)
+        if collab and collab.daily_rate is not None
+        else global_rate
+    )
+    rate_por_min = daily_rate / Decimal(JORNADA_MIN) if daily_rate > 0 else Decimal("0")
+    r_extra_valor = rate_por_min * Decimal(extra_saldo_min)
+
+    return {
+        "h_normais_min": h_normais_min,
+        "folga_bruto_min": folga_bruto_min,
+        "folga_bruto_saldo_min": folga_bruto_saldo_min,
+        "folga_bruto_dias": folga_bruto_saldo_min / JORNADA_MIN,
+        "extra_acumulado_min": extra_acumulado_min,
+        "extra_saldo_min": extra_saldo_min,
+        "h_bruto_min": h_bruto_min,
+        "dias_incompletos": [d.isoformat() for d in dias_incompletos],
+        "dias_processados": dias_processados,
+        "rate_por_min": rate_por_min,
+        "r_extra_valor": r_extra_valor,
+        "daily_rate": daily_rate,
+        "desconto_min": desconto_min,
+        "folgas_usadas_count": folgas_usadas_count,
+    }
+
+
+def _calc_meta_mensal(year: int, month: int) -> int:
+    """Calcula a meta de horas do mês em minutos (exclui domingos e feriados)."""
+    _, days_in_month = calendar.monthrange(year, month)
+    meta_min = 0
+    for day in range(1, days_in_month + 1):
+        d = date(year, month, day)
+        if d.weekday() != 6 and not is_feriado(d):
+            meta_min += JORNADA_MIN
+    return meta_min
 
 
 def monthly_summary(
@@ -1274,7 +1658,7 @@ def whatsapp_pdf():
     try:
         from weasyprint import HTML  # type: ignore[import-untyped]
 
-        pdf_bytes = HTML(string=html, base_url=request.host_url).write_pdf()
+        pdf_bytes: bytes = HTML(string=html, base_url=request.host_url).write_pdf() or b""
         filename = f"multimax_{year}_{month:02d}.pdf"
         wz.send_pdf(pdf_bytes, filename, totals["month_label"])
         flash("PDF enviado para o grupo WhatsApp.", "success")
@@ -1348,6 +1732,47 @@ def ponto_logout():
     nome = _flask_session.pop("ponto_collab_name", "")
     _flask_session.pop("ponto_collab_id", None)
     flash(f"Ate logo, {nome}!" if nome else "Sessao encerrada.", "info")
+    return redirect(url_for("ponto_login"))
+
+
+@app.post("/ponto/recuperar-senha")
+def ponto_recuperar_senha():
+    """Envia senha temporária para o WhatsApp do colaborador."""
+    nome = (request.form.get("nome") or "").strip()
+    if not nome:
+        flash("Informe seu nome para recuperar a senha.", "warning")
+        return redirect(url_for("ponto_login"))
+
+    collab = Collaborator.query.filter(
+        func.lower(Collaborator.name) == nome.lower(),
+        Collaborator.active == True,  # noqa: E712
+        Collaborator.ponto_password_hash != None,  # noqa: E711
+    ).first()
+
+    # Mensagem genérica para não revelar se o usuário existe
+    msg_ok = "Se o nome estiver cadastrado com WhatsApp, uma senha temporária foi enviada."
+
+    if not collab or not collab.whatsapp:
+        flash(msg_ok, "info")
+        return redirect(url_for("ponto_login"))
+
+    # Gera senha temporária: 6 caracteres alfanuméricos maiúsculos
+    alphabet = string.ascii_uppercase + string.digits
+    temp_senha = "".join(secrets.choice(alphabet) for _ in range(6))
+
+    collab.ponto_password_hash = generate_password_hash(temp_senha)
+    db.session.commit()
+
+    wz.send(
+        f"🔑 *Senha temporária de ponto*\n"
+        f"Olá, {collab.name}!\n\n"
+        f"Sua nova senha temporária é: *{temp_senha}*\n\n"
+        f"Acesse o ponto e altere-a imediatamente após entrar.",
+        origin="ponto_recuperar_senha",
+        para=collab.whatsapp,
+    )
+
+    flash(msg_ok, "info")
     return redirect(url_for("ponto_login"))
 
 
@@ -1717,6 +2142,9 @@ def ponto_confirmar():
     ad_key = (request.form.get("ad_key") or "").strip() or None
     gives_folga = bool(request.form.get("gives_folga"))
     collab_id_raw = (request.form.get("collaborator_id") or "").strip()
+    punch_type = (request.form.get("punch_type") or "").strip() or None
+    origin = "admin" if current_user.is_authenticated else "automatico"
+    gives_folga = bool(request.form.get("gives_folga"))
 
     try:
         punch_date = datetime.strptime(data_str, "%d/%m/%Y").date()
@@ -1773,6 +2201,9 @@ def ponto_confirmar():
         nrep=nrep,
         ad_key=ad_key,
         image_filename=filename or None,
+        punch_type=punch_type or None,
+        origin=origin,
+        gives_folga=gives_folga,
     )
     db.session.add(record)
     db.session.flush()  # persiste id sem commit final
@@ -1804,6 +2235,31 @@ def ponto_confirmar():
             f"CPF {raw_cpf} nao vinculado — vincule manualmente.",
             "warning",
         )
+
+    # Notificação WhatsApp — apenas para o número pessoal do colaborador
+    if collab and collab.whatsapp:
+        wz.ponto_registrado(
+            collab.name,
+            data_str,
+            hora_str,
+            punch_type or "—",
+            origin,
+            para=collab.whatsapp,
+        )
+        # Verifica jornada incompleta no dia
+        all_day = (
+            PunchRecord.query
+            .filter_by(collaborator_id=collab_id, punch_date=punch_date)
+            .order_by(PunchRecord.punch_time.asc())
+            .all()
+        )
+        day_result = _process_punches_dia(all_day)
+        if day_result["incompleto"]:
+            wz.jornada_incompleta(collab.name, data_str, para=collab.whatsapp)
+
+    # Lembrete agendado por horário definido
+    if collab:
+        _handle_schedule_alerts(collab, punch_date, punch_type, data_str)
 
     return redirect(url_for("ponto"))
 
@@ -1866,6 +2322,421 @@ def service_worker():
     return response
 
 
+# ---------------------------------------------------------------------------
+# Tela de escolha de acesso (Bloco 7 — UX de Login)
+# ---------------------------------------------------------------------------
+
+@app.get("/acesso")
+def acesso():
+    """Tela intermediária: escolha entre Administrador e Colaborador."""
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
+    if _flask_session.get("ponto_collab_id"):
+        return redirect(url_for("ponto_camera"))
+    return render_template("login_choice.html")
+
+
+# ---------------------------------------------------------------------------
+# Gestão de Feriados (admin only — Bloco 6)
+# ---------------------------------------------------------------------------
+
+@app.get("/feriados")
+@login_required
+def feriados_list():
+    """Lista feriados cadastrados."""
+    feriados = Holiday.query.order_by(Holiday.holiday_date.desc()).all()
+    return render_template("feriados.html", feriados=feriados)
+
+
+@app.post("/feriados/create")
+@login_required
+def feriado_create():
+    """Cadastra um novo feriado e recalcula metas automaticamente."""
+    date_raw = (request.form.get("holiday_date") or "").strip()
+    descricao = (request.form.get("descricao") or "").strip()
+    if not date_raw or not descricao:
+        flash("Data e descrição são obrigatórios.", "warning")
+        return redirect(url_for("feriados_list"))
+    try:
+        holiday_date = datetime.strptime(date_raw, "%Y-%m-%d").date()
+    except ValueError:
+        flash("Data inválida.", "danger")
+        return redirect(url_for("feriados_list"))
+    if Holiday.query.filter_by(holiday_date=holiday_date).first():
+        flash(
+            f"Feriado em {holiday_date.strftime('%d/%m/%Y')} já cadastrado.", "warning"
+        )
+        return redirect(url_for("feriados_list"))
+    db.session.add(Holiday(holiday_date=holiday_date, descricao=descricao))
+    db.session.commit()
+    flash(
+        f"Feriado '{descricao}' em {holiday_date.strftime('%d/%m/%Y')} cadastrado. "
+        "Metas recalculadas automaticamente.",
+        "success",
+    )
+    return redirect(url_for("feriados_list"))
+
+
+@app.post("/feriados/<int:feriado_id>/delete")
+@login_required
+def feriado_delete(feriado_id: int):
+    """Remove um feriado cadastrado."""
+    f = db.session.get(Holiday, feriado_id)
+    if not f:
+        flash("Feriado não encontrado.", "warning")
+        return redirect(url_for("feriados_list"))
+    desc = f.descricao
+    db.session.delete(f)
+    db.session.commit()
+    flash(f"Feriado '{desc}' removido.", "info")
+    return redirect(url_for("feriados_list"))
+
+
+# ---------------------------------------------------------------------------
+# Painel do Colaborador — Indicadores de Ponto (Bloco 5)
+# ---------------------------------------------------------------------------
+
+@app.get("/colaborador/<int:collab_id>/painel")
+@ponto_required
+def colaborador_painel(collab_id: int):
+    """Painel de indicadores de ponto com Regra da Cisão."""
+    collab = db.session.get(Collaborator, collab_id)
+    if not collab:
+        flash("Colaborador não encontrado.", "danger")
+        return redirect(url_for("ponto_camera"))
+
+    sess_id = _flask_session.get("ponto_collab_id")
+    if not current_user.is_authenticated and sess_id != collab_id:
+        flash("Acesso não autorizado.", "danger")
+        return redirect(url_for("ponto_camera"))
+
+    year, month = _parse_month_param(request.args.get("month"))
+
+    # Indicadores do mês selecionado
+    ind_mes = _calc_ponto_indicadores(collab_id, year, month)
+    # Saldo acumulado (all-time) para travas de desconto e folga
+    ind_total = _calc_ponto_indicadores(collab_id)
+
+    meta_min = _calc_meta_mensal(year, month)
+    h_cumprido_min = ind_mes["h_normais_min"] + ind_mes["folga_bruto_min"]
+    faltantes_min = max(0, meta_min - h_cumprido_min)
+
+    month_start = date(year, month, 1)
+    month_end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+    feriados_mes = Holiday.query.filter(
+        Holiday.holiday_date >= month_start,
+        Holiday.holiday_date < month_end,
+    ).order_by(Holiday.holiday_date.asc()).all()
+
+    prev_m = month - 1 if month > 1 else 12
+    prev_y = year if month > 1 else year - 1
+    next_m = month + 1 if month < 12 else 1
+    next_y = year if month < 12 else year + 1
+
+    # Histórico de ajustes
+    ajustes = (
+        PontoAjuste.query.filter_by(collaborator_id=collab_id)
+        .order_by(PontoAjuste.created_at.desc())
+        .limit(20)
+        .all()
+    )
+
+    return render_template(
+        "ponto_painel.html",
+        collab=collab,
+        ind_mes=ind_mes,
+        ind_total=ind_total,
+        meta_min=meta_min,
+        faltantes_min=faltantes_min,
+        h_cumprido_min=h_cumprido_min,
+        feriados_mes=feriados_mes,
+        ajustes=ajustes,
+        year=year,
+        month=month,
+        month_label=f"{_MESES_PT[month]} {year}",
+        prev_param=f"{prev_y}-{prev_m:02d}",
+        next_param=f"{next_y}-{next_m:02d}",
+        today=date.today().isoformat(),
+        fmt_min=_fmt_min_hhmm,
+        JORNADA_MIN=JORNADA_MIN,
+        sched_turnos=_get_schedule(collab),
+    )
+
+
+@app.post("/colaborador/<int:collab_id>/desconto-extra")
+@ponto_required
+def colaborador_desconto_extra(collab_id: int):
+    """Registra desconto de horas extras (com trava de saldo)."""
+    sess_id = _flask_session.get("ponto_collab_id")
+    if not current_user.is_authenticated and sess_id != collab_id:
+        flash("Acesso não autorizado.", "danger")
+        return redirect(url_for("ponto_camera"))
+
+    collab = db.session.get(Collaborator, collab_id)
+    if not collab:
+        flash("Colaborador não encontrado.", "danger")
+        return redirect(url_for("ponto_camera"))
+
+    horas_raw = (request.form.get("horas") or "").strip().replace(",", ".")
+    obs = (request.form.get("obs") or "Desconto de horas extras").strip()
+    month_param = request.form.get("month", "")
+
+    try:
+        horas = float(horas_raw)
+        if horas <= 0:
+            raise ValueError
+    except (ValueError, AttributeError):
+        flash("Informe um valor de horas válido (ex: 2 ou 1.5).", "warning")
+        return redirect(
+            url_for("colaborador_painel", collab_id=collab_id, month=month_param)
+        )
+
+    minutos_solicitados = round(horas * 60)
+    ind = _calc_ponto_indicadores(collab_id)  # saldo acumulado
+    saldo_min = ind["extra_saldo_min"]
+
+    if minutos_solicitados > saldo_min:
+        flash(
+            f"Saldo insuficiente. Saldo R$ Extra disponível: "
+            f"{_fmt_min_hhmm(saldo_min)}h. Solicitado: {_fmt_min_hhmm(minutos_solicitados)}h.",
+            "danger",
+        )
+        return redirect(
+            url_for("colaborador_painel", collab_id=collab_id, month=month_param)
+        )
+
+    criado_por = "admin" if current_user.is_authenticated else "colaborador"
+    db.session.add(
+        PontoAjuste(
+            collaborator_id=collab_id,
+            tipo="desconto_extra",
+            minutos=minutos_solicitados,
+            obs=obs,
+            criado_por=criado_por,
+        )
+    )
+    db.session.commit()
+    flash(
+        f"Desconto de {_fmt_min_hhmm(minutos_solicitados)}h registrado com sucesso.",
+        "success",
+    )
+    return redirect(
+        url_for("colaborador_painel", collab_id=collab_id, month=month_param)
+    )
+
+
+@app.post("/colaborador/<int:collab_id>/usar-folga-ponto")
+@ponto_required
+def colaborador_usar_folga_ponto(collab_id: int):
+    """Registra uso de folga acumulada por ponto (com trava de saldo mínimo 7:20)."""
+    sess_id = _flask_session.get("ponto_collab_id")
+    if not current_user.is_authenticated and sess_id != collab_id:
+        flash("Acesso não autorizado.", "danger")
+        return redirect(url_for("ponto_camera"))
+
+    collab = db.session.get(Collaborator, collab_id)
+    if not collab:
+        flash("Colaborador não encontrado.", "danger")
+        return redirect(url_for("ponto_camera"))
+
+    date_raw = (request.form.get("data_referencia") or "").strip()
+    obs = (request.form.get("obs") or "Folga utilizada").strip()
+    month_param = request.form.get("month", "")
+
+    try:
+        data_ref = datetime.strptime(date_raw, "%Y-%m-%d").date()
+    except ValueError:
+        flash("Data inválida.", "warning")
+        return redirect(
+            url_for("colaborador_painel", collab_id=collab_id, month=month_param)
+        )
+
+    ind = _calc_ponto_indicadores(collab_id)  # saldo acumulado
+    saldo_min = ind["folga_bruto_saldo_min"]
+
+    if saldo_min < JORNADA_MIN:
+        flash(
+            f"Saldo insuficiente. Você precisa de pelo menos 7:20h (1 dia) de folga. "
+            f"Saldo atual: {_fmt_min_hhmm(saldo_min)}h.",
+            "danger",
+        )
+        return redirect(
+            url_for("colaborador_painel", collab_id=collab_id, month=month_param)
+        )
+
+    criado_por = "admin" if current_user.is_authenticated else "colaborador"
+    db.session.add(
+        PontoAjuste(
+            collaborator_id=collab_id,
+            tipo="uso_folga",
+            minutos=JORNADA_MIN,
+            data_referencia=data_ref,
+            obs=obs,
+            criado_por=criado_por,
+        )
+    )
+    db.session.commit()
+    saldo_restante = saldo_min - JORNADA_MIN
+    flash(
+        f"Folga de {data_ref.strftime('%d/%m/%Y')} registrada. "
+        f"Saldo restante: {_fmt_min_hhmm(saldo_restante)}h "
+        f"({saldo_restante // JORNADA_MIN} dia(s) completo(s)).",
+        "success",
+    )
+    return redirect(
+        url_for("colaborador_painel", collab_id=collab_id, month=month_param)
+    )
+
+
+@app.post("/colaborador/<int:collab_id>/whatsapp")
+@ponto_required
+def colaborador_salvar_whatsapp(collab_id: int):
+    """Salva ou limpa o número de WhatsApp do próprio colaborador."""
+    sess_id = _flask_session.get("ponto_collab_id")
+    if not current_user.is_authenticated and sess_id != collab_id:
+        flash("Acesso não autorizado.", "danger")
+        return redirect(url_for("ponto_camera"))
+
+    collab = db.session.get(Collaborator, collab_id)
+    if not collab:
+        flash("Colaborador não encontrado.", "danger")
+        return redirect(url_for("ponto_camera"))
+
+    month_param = request.form.get("month", "")
+    numero_raw = (request.form.get("whatsapp") or "").strip()
+    # Mantém apenas dígitos
+    numero = re.sub(r"\D", "", numero_raw)
+    if numero and len(numero) < 10:
+        flash("Número inválido. Informe DDD + número (ex: 11999999999).", "warning")
+        return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
+
+    collab.whatsapp = numero if numero else None
+    db.session.commit()
+    if numero:
+        flash(f"WhatsApp {numero_raw} salvo. Você receberá notificações de ponto.", "success")
+    else:
+        flash("Número de WhatsApp removido.", "info")
+    return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
+
+
+@app.post("/colaborador/<int:collab_id>/whatsapp/teste")
+@ponto_required
+def colaborador_whatsapp_teste(collab_id: int):
+    """Envia mensagem de teste para o número WhatsApp cadastrado."""
+    sess_id = _flask_session.get("ponto_collab_id")
+    if not current_user.is_authenticated and sess_id != collab_id:
+        flash("Acesso não autorizado.", "danger")
+        return redirect(url_for("ponto_camera"))
+
+    collab = db.session.get(Collaborator, collab_id)
+    if not collab or not collab.whatsapp:
+        flash("Nenhum número cadastrado.", "warning")
+        return redirect(url_for("colaborador_painel", collab_id=collab_id))
+
+    month_param = request.form.get("month", "")
+    wz.send(
+        f"✅ *Teste de conexão — MultiMax*\n"
+        f"Olá, {collab.name}! Sua notificação de ponto está configurada corretamente. "
+        f"Número registrado: {collab.whatsapp}",
+        origin="ponto_teste",
+        para=collab.whatsapp,
+    )
+    flash(f"Mensagem de teste enviada para {collab.whatsapp}.", "success")
+    return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
+
+
+@app.post("/colaborador/<int:collab_id>/schedule")
+@ponto_required
+def colaborador_salvar_schedule(collab_id: int):
+    """Salva os horários de trabalho definidos pelo colaborador."""
+    sess_id = _flask_session.get("ponto_collab_id")
+    if not current_user.is_authenticated and sess_id != collab_id:
+        flash("Acesso não autorizado.", "danger")
+        return redirect(url_for("ponto_camera"))
+    collab = db.session.get(Collaborator, collab_id)
+    if not collab:
+        flash("Colaborador não encontrado.", "danger")
+        return redirect(url_for("ponto_camera"))
+    month_param = request.form.get("month", "")
+    turnos = []
+    for i in range(5):
+        entrada = (request.form.get(f"entrada_{i}") or "").strip()
+        if not entrada:
+            break
+        turno: dict = {"entrada": entrada}
+        for campo in ("saida_intervalo", "volta_intervalo", "saida_final"):
+            val = (request.form.get(f"{campo}_{i}") or "").strip()
+            if val:
+                turno[campo] = val
+        turnos.append(turno)
+    collab.schedule_json = json.dumps({"turnos": turnos}, ensure_ascii=False) if turnos else None
+    db.session.commit()
+    flash("Horários salvos com sucesso.", "success")
+    return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
+
+
+@app.post("/colaborador/<int:collab_id>/alterar-senha")
+@ponto_required
+def colaborador_alterar_senha(collab_id: int):
+    """Permite ao colaborador alterar sua própria senha de ponto."""
+    sess_id = _flask_session.get("ponto_collab_id")
+    if not current_user.is_authenticated and sess_id != collab_id:
+        flash("Acesso não autorizado.", "danger")
+        return redirect(url_for("ponto_camera"))
+    collab = db.session.get(Collaborator, collab_id)
+    if not collab:
+        flash("Colaborador não encontrado.", "danger")
+        return redirect(url_for("ponto_camera"))
+
+    month_param = request.form.get("month", "")
+    senha_atual = (request.form.get("senha_atual") or "").strip()
+    senha_nova = (request.form.get("senha_nova") or "").strip()
+    senha_conf = (request.form.get("senha_conf") or "").strip()
+
+    if not collab.ponto_password_hash or not check_password_hash(collab.ponto_password_hash, senha_atual):
+        flash("Senha atual incorreta.", "danger")
+        return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
+    if len(senha_nova) < 4:
+        flash("A nova senha deve ter pelo menos 4 caracteres.", "danger")
+        return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
+    if senha_nova != senha_conf:
+        flash("A nova senha e a confirmação não conferem.", "danger")
+        return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
+
+    collab.ponto_password_hash = generate_password_hash(senha_nova)
+    db.session.commit()
+    flash("Senha alterada com sucesso.", "success")
+    return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
+
+
+@app.get("/api/ponto/indicadores/<int:collab_id>")
+@ponto_required
+def api_ponto_indicadores(collab_id: int):
+    """Retorna indicadores de ponto em JSON (para uso via AJAX)."""
+    sess_id = _flask_session.get("ponto_collab_id")
+    if not current_user.is_authenticated and sess_id != collab_id:
+        return jsonify({"error": "não autorizado"}), 403
+
+    year, month = _parse_month_param(request.args.get("month"))
+    ind = _calc_ponto_indicadores(collab_id, year, month)
+    meta_min = _calc_meta_mensal(year, month)
+    h_cumprido = ind["h_normais_min"] + ind["folga_bruto_min"]
+
+    return jsonify(
+        {
+            "h_bruto": _fmt_min_hhmm(ind["h_bruto_min"]),
+            "h_normais": _fmt_min_hhmm(ind["h_normais_min"]),
+            "folga_bruto_horas": _fmt_min_hhmm(ind["folga_bruto_saldo_min"]),
+            "folga_bruto_dias": round(ind["folga_bruto_dias"], 2),
+            "extra_saldo_horas": _fmt_min_hhmm(ind["extra_saldo_min"]),
+            "r_extra_valor": float(ind["r_extra_valor"]),
+            "dias_incompletos": ind["dias_incompletos"],
+            "meta_mensal": _fmt_min_hhmm(meta_min),
+            "faltantes": _fmt_min_hhmm(max(0, meta_min - h_cumprido)),
+        }
+    )
+
+
 with app.app_context():
     db.create_all()
     ensure_schema()
@@ -1883,4 +2754,62 @@ if __name__ == "__main__":
         port = 5051
 
     debug = debug_raw.strip().lower() in {"1", "true", "yes", "on"}
+
+    def _upload_cleanup_loop(interval: int = 86_400, max_age: int = 86_400) -> None:
+        """Remove imagens de uploads/ponto com mais de max_age segundos, a cada interval s."""
+        while True:
+            try:
+                now = time.time()
+                removed = 0
+                if os.path.isdir(UPLOAD_FOLDER):
+                    for fname in os.listdir(UPLOAD_FOLDER):
+                        fpath = os.path.join(UPLOAD_FOLDER, fname)
+                        if not os.path.isfile(fpath):
+                            continue
+                        if os.path.splitext(fname)[1].lower() not in _ALLOWED_IMAGE_EXTS:
+                            continue
+                        if now - os.path.getmtime(fpath) > max_age:
+                            try:
+                                os.remove(fpath)
+                                removed += 1
+                            except OSError:
+                                pass
+                if removed:
+                    app.logger.info("[cleanup] %d imagem(ns) de ponto removida(s).", removed)
+            except Exception as exc:  # noqa: BLE001
+                app.logger.warning("[cleanup] erro: %s", exc)
+            time.sleep(interval)
+
+    _t = threading.Thread(target=_upload_cleanup_loop, daemon=True, name="upload-cleanup")
+    _t.start()
+
+    def _alert_loop(interval: int = 60) -> None:
+        """Dispara lembretes de ponto agendados quando o tempo previsto + 20min passa."""
+        while True:
+            time.sleep(interval)
+            now = time.time()
+            to_fire = []
+            with _pending_alerts_lock:
+                fire_keys = [k for k, v in _pending_alerts.items() if v["fire_at"] <= now]
+                for k in fire_keys:
+                    to_fire.append(_pending_alerts.pop(k))
+            for alert in to_fire:
+                try:
+                    wz.lembrete_saida(
+                        alert["collab_name"],
+                        alert["data_str"],
+                        alert["expected_time"],
+                        alert["tipo"],
+                        para=alert["whatsapp"],
+                    )
+                    app.logger.info(
+                        "[alert] lembrete %s enviado para %s",
+                        alert["tipo"], alert["collab_name"],
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    app.logger.warning("[alert] erro ao enviar lembrete: %s", exc)
+
+    _ta = threading.Thread(target=_alert_loop, daemon=True, name="alert-loop")
+    _ta.start()
+
     app.run(host=host, debug=debug, port=port)

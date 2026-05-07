@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}Acesso | MultiMax{% endblock %}
+
+{% block content %}
+<section class="login-wrap">
+    <article class="login-card" style="max-width:480px">
+        <p class="hero-tag">&#128274; Bem-vindo ao MultiMax</p>
+        <h2>Como deseja acessar?</h2>
+        <p class="hero-text">Escolha o tipo de acesso para continuar.</p>
+
+        <div class="choice-grid">
+            <a class="choice-card choice-admin" href="{{ url_for('login') }}">
+                <span class="choice-icon">&#128737;</span>
+                <strong>Administrador</strong>
+                <span class="choice-desc">Gestão de lançamentos, colaboradores e configurações</span>
+            </a>
+            <a class="choice-card choice-collab" href="{{ url_for('ponto_login') }}">
+                <span class="choice-icon">&#128247;</span>
+                <strong>Colaborador</strong>
+                <span class="choice-desc">Registro de ponto e consulta do seu painel pessoal</span>
+            </a>
+        </div>
+
+        <p style="margin-top:1.5rem;text-align:center;font-size:.8rem;color:var(--text-muted)">
+            www.multimax.tec.br
+        </p>
+    </article>
+</section>
+
+<style>
+.choice-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+@media (max-width: 400px) {
+    .choice-grid { grid-template-columns: 1fr; }
+}
+.choice-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .5rem;
+    padding: 1.5rem 1rem;
+    border-radius: 12px;
+    text-decoration: none;
+    transition: transform .15s, box-shadow .15s;
+    border: 2px solid transparent;
+}
+.choice-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,.25);
+}
+.choice-admin {
+    background: rgba(30,90,80,.18);
+    border-color: var(--accent, #1e5a50);
+    color: var(--text, #e8f5f2);
+}
+.choice-collab {
+    background: rgba(60,140,120,.18);
+    border-color: #3c8c78;
+    color: var(--text, #e8f5f2);
+}
+.choice-icon { font-size: 2.2rem; }
+.choice-card strong { font-size: 1.05rem; }
+.choice-desc {
+    font-size: .78rem;
+    text-align: center;
+    color: inherit;
+    opacity: .72;
+    line-height: 1.4;
+}
+</style>
+{% endblock %}

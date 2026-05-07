@@ -19,6 +19,22 @@
                    placeholder="Senha fornecida pelo admin">
             <button class="btn" type="submit">Entrar</button>
         </form>
+
+        <!-- Recuperação de senha -->
+        <details style="margin-top:1.25rem;border:1px solid var(--line);border-radius:8px;padding:.75rem">
+            <summary style="cursor:pointer;font-size:.85rem;color:var(--text-muted)">
+                &#128272; Esqueci minha senha
+            </summary>
+            <p style="font-size:.82rem;color:var(--text-muted);margin:.5rem 0 .6rem">
+                Informe seu nome. Uma senha temporária será enviada para o WhatsApp cadastrado.
+            </p>
+            <form method="post" action="{{ url_for('ponto_recuperar_senha') }}" style="display:flex;gap:.5rem;flex-wrap:wrap">
+                <input type="text" name="nome" required autocomplete="name"
+                       placeholder="Seu nome completo" style="flex:1;min-width:160px">
+                <button class="btn" type="submit">Enviar</button>
+            </form>
+        </details>
+
         <p style="margin-top:1rem;text-align:center;font-size:.85rem;color:var(--text-muted)">
             Administrador?
             <a href="{{ url_for('login') }}">Acesse aqui</a>

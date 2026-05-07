@@ -7,6 +7,7 @@
     <div class="hist-hero-back">
         <a class="btn btn-ghost" href="{{ url_for('index') }}">&#8592; Voltar</a>
         <a class="btn btn-ghost" href="{{ url_for('collaborator_pdf', collaborator_id=collab.id, month=request.args.get('month', '')) }}">&#128196; Baixar PDF</a>
+        <a class="btn btn-ghost" href="{{ url_for('colaborador_painel', collab_id=collab.id, month=request.args.get('month', '')) }}">&#128200; Painel de Ponto</a>
     </div>
     <div class="hist-hero-body">
         <p class="hero-tag">Histórico de lançamentos</p>

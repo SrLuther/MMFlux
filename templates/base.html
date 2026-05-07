@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Ubuntu+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=6">
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <meta name="theme-color" content="#1e5a50">
     <meta name="mobile-web-app-capable" content="yes">
@@ -36,17 +36,25 @@
         <nav class="actions">
             <a class="btn btn-ghost" href="{{ url_for('ponto') }}">&#128247; Ponto</a>
             {% if current_user.is_authenticated %}
+            <a class="btn btn-ghost" href="{{ url_for('feriados_list') }}">&#128197; Feriados</a>
             <span class="pill">Modo edicao ativo</span>
             <form method="post" action="{{ url_for('logout') }}">
                 <button class="btn btn-ghost" type="submit">Sair</button>
             </form>
             {% elif session.get('ponto_collab_id') %}
-            <span class="pill">{{ session.get('ponto_collab_name', '') }}</span>
-            <form method="post" action="{{ url_for('ponto_logout') }}">
-                <button class="btn btn-ghost" type="submit">Sair</button>
-            </form>
+            <div class="nav-dropdown">
+                <button class="pill pill-dropdown" aria-haspopup="true" aria-expanded="false">
+                    {{ session.get('ponto_collab_name', '') }} &#9660;
+                </button>
+                <div class="nav-dropdown-menu">
+                    <a href="{{ url_for('colaborador_painel', collab_id=session.get('ponto_collab_id')) }}">&#128200; Meu Painel</a>
+                    <form method="post" action="{{ url_for('ponto_logout') }}">
+                        <button type="submit">&#9099; Sair</button>
+                    </form>
+                </div>
+            </div>
             {% else %}
-            <a class="btn btn-ghost" href="{{ url_for('login') }}">Entrar</a>
+            <a class="btn btn-ghost" href="{{ url_for('acesso') }}">Entrar</a>
             {% endif %}
         </nav>
     </header>
@@ -78,6 +86,27 @@
   }
   adjustTopbarPadding();
   window.addEventListener('resize', adjustTopbarPadding);
+
+  // Dropdown do colaborador
+  (function () {
+    var btn = document.querySelector('.pill-dropdown');
+    var menu = document.querySelector('.nav-dropdown-menu');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var isOpen = menu.classList.toggle('open');
+      btn.classList.toggle('open', isOpen);
+      btn.setAttribute('aria-expanded', String(isOpen));
+    });
+    menu.addEventListener('click', function (e) {
+      e.stopPropagation();
+    });
+    document.addEventListener('click', function () {
+      menu.classList.remove('open');
+      btn.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    });
+  })();
 </script>
 </body>
 </html>

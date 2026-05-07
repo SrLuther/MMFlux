@@ -162,17 +162,17 @@
     {% if pagination.pages > 1 %}
     <nav class="ponto-pagination">
         {% if pagination.has_prev %}
-            <a class="btn btn-ghost btn-sm" href="{{ url_for('ponto', page=pagination.prev_num) }}">&#8592; Anterior</a>
+            <a class="btn btn-sm" href="{{ url_for('ponto', page=pagination.prev_num) }}">&#8592; Anterior</a>
         {% else %}
-            <span class="btn btn-ghost btn-sm disabled">&#8592; Anterior</span>
+            <span class="btn btn-sm disabled" style="opacity:.35;cursor:default">&#8592; Anterior</span>
         {% endif %}
 
         <span class="ponto-page-info">Página {{ pagination.page }} de {{ pagination.pages }}</span>
 
         {% if pagination.has_next %}
-            <a class="btn btn-ghost btn-sm" href="{{ url_for('ponto', page=pagination.next_num) }}">Próxima &#8594;</a>
+            <a class="btn btn-sm" href="{{ url_for('ponto', page=pagination.next_num) }}">Próxima &#8594;</a>
         {% else %}
-            <span class="btn btn-ghost btn-sm disabled">Próxima &#8594;</span>
+            <span class="btn btn-sm disabled" style="opacity:.35;cursor:default">Próxima &#8594;</span>
         {% endif %}
     </nav>
     {% endif %}

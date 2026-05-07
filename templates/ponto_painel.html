@@ -1,0 +1,535 @@
+{% extends 'base.html' %}
+{% block title %}Painel · {{ collab.name }} | MultiMax{% endblock %}
+
+{% block content %}
+
+{# --- Macro para formatar minutos como H:MM --- #}
+{% macro hhmm(min) %}{{ fmt_min(min) }}{% endmacro %}
+
+<section class="hist-hero">
+    <div class="hist-hero-back">
+        <a class="btn btn-ghost" href="{{ url_for('ponto_camera') }}">&#8592; Voltar</a>
+        {% if current_user.is_authenticated %}
+        <a class="btn btn-ghost" href="{{ url_for('feriados_list') }}">&#128197; Feriados</a>
+        {% endif %}
+    </div>
+    <div class="hist-hero-body">
+        <p class="hero-tag">&#128200; Painel de Ponto</p>
+        <h2 class="hist-name">{{ collab.name }}</h2>
+        <p class="hist-role">{{ collab.role or '—' }} &nbsp;·&nbsp;
+            <span class="status {{ 'on' if collab.active else 'off' }}">
+                {{ 'Ativo' if collab.active else 'Inativo' }}
+            </span>
+        </p>
+    </div>
+
+    <!-- Navegação de mês -->
+    <div class="month-nav" style="margin:.75rem 0 .25rem">
+        <a class="btn btn-ghost" href="{{ url_for('colaborador_painel', collab_id=collab.id, month=prev_param) }}">&#8592;</a>
+        <span class="month-label">{{ month_label }}</span>
+        <a class="btn btn-ghost" href="{{ url_for('colaborador_painel', collab_id=collab.id, month=next_param) }}">&#8594;</a>
+    </div>
+
+    <!-- Indicadores do mês — Regra da Cisão -->
+    <div class="hero-metrics">
+
+        <!-- H BRUTO -->
+        <div class="metric metric-add">
+            <span>H Bruto</span>
+            <strong>{{ hhmm(ind_mes.h_bruto_min) }}</strong>
+        </div>
+
+        <!-- H NORMAIS -->
+        <div class="metric metric-neutral">
+            <span>H Normais</span>
+            <strong>{{ hhmm(ind_mes.h_normais_min) }}</strong>
+        </div>
+
+        <!-- DIAS FOLGA BRUTO -->
+        <div class="metric metric-neutral">
+            <span>Folga Bruta</span>
+            <strong>{{ hhmm(ind_mes.folga_bruto_min) }}</strong>
+            <small style="font-size:.72rem;color:var(--text-muted)">
+                ≈ {{ '%.1f'|format(ind_mes.folga_bruto_min / JORNADA_MIN) }}d
+            </small>
+        </div>
+
+        <!-- R$ EXTRA (saldo do mês) -->
+        <div class="metric {% if ind_mes.extra_saldo_min > 0 %}metric-value{% endif %}">
+            <span>R$ Extra (mês)</span>
+            <strong>
+                {% if ind_mes.r_extra_valor > 0 %}
+                R$ {{ '{:,.2f}'.format(ind_mes.r_extra_valor)|replace(',','X')|replace('.',',')|replace('X','.') }}
+                {% else %}—{% endif %}
+            </strong>
+            <small style="font-size:.72rem;color:var(--text-muted)">
+                {{ hhmm(ind_mes.extra_saldo_min) }}h extras
+            </small>
+        </div>
+
+        <!-- META MENSAL -->
+        <div class="metric metric-neutral">
+            <span>Meta do Mês</span>
+            <strong>{{ hhmm(meta_min) }}</strong>
+        </div>
+
+        <!-- HORAS FALTANTES -->
+        <div class="metric {% if faltantes_min > 0 %}metric-sub{% else %}metric-neutral{% endif %}">
+            <span>Faltantes</span>
+            <strong>{{ hhmm(faltantes_min) if faltantes_min > 0 else '✓ Meta atingida' }}</strong>
+        </div>
+
+        <!-- DIAS INCOMPLETOS -->
+        {% if ind_mes.dias_incompletos %}
+        <div class="metric metric-sub">
+            <span>Jornadas Incompletas</span>
+            <strong>{{ ind_mes.dias_incompletos|length }}</strong>
+        </div>
+        {% endif %}
+
+    </div>
+</section>
+
+<!-- ─── SALDOS ACUMULADOS (ALL-TIME) ─────────────────────────────────────── -->
+<div class="pconf-wrap" style="max-width:860px;margin:0 auto">
+
+    <h3 class="admin-entry-title" style="margin-top:1.5rem">
+        &#128200; Saldos Acumulados — Total Histórico
+    </h3>
+
+    <!-- Banco de Horas Extras: Acumulado − Descontado = Saldo -->
+    <div class="saldo-bloco" style="margin-bottom:.65rem">
+        <div class="saldo-bloco-titulo">&#9201; Banco de Horas Extras</div>
+        <div class="saldo-bloco-linha">
+            <div class="saldo-item saldo-entrada">
+                <span class="saldo-label">Acumulado</span>
+                <strong class="saldo-valor">{{ hhmm(ind_total.extra_acumulado_min) }}h</strong>
+                <small class="saldo-sub">horas além de 7:20 por dia</small>
+            </div>
+            <div class="saldo-sep">−</div>
+            <div class="saldo-item saldo-saida">
+                <span class="saldo-label">Descontado</span>
+                <strong class="saldo-valor">{{ hhmm(ind_total.desconto_min) }}h</strong>
+                <small class="saldo-sub">devolvido ao empregador</small>
+            </div>
+            <div class="saldo-sep">=</div>
+            <div class="saldo-item {% if ind_total.extra_saldo_min > 0 %}saldo-resultado{% else %}saldo-zero{% endif %}">
+                <span class="saldo-label">Saldo em R$</span>
+                <strong class="saldo-valor">
+                    R$&nbsp;{{ '{:,.2f}'.format(ind_total.r_extra_valor)|replace(',','X')|replace('.',',')|replace('X','.') }}
+                </strong>
+                <small class="saldo-sub">{{ hhmm(ind_total.extra_saldo_min) }}h restantes</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Banco de Folgas: Acumuladas − Utilizadas = Saldo -->
+    <div class="saldo-bloco" style="margin-bottom:1rem">
+        <div class="saldo-bloco-titulo">&#127774; Banco de Folgas (domingos &amp; feriados)</div>
+        <div class="saldo-bloco-linha">
+            <div class="saldo-item saldo-entrada">
+                <span class="saldo-label">Acumuladas</span>
+                <strong class="saldo-valor">{{ '%.1f'|format(ind_total.folga_bruto_min / JORNADA_MIN) }}d</strong>
+                <small class="saldo-sub">{{ hhmm(ind_total.folga_bruto_min) }}h (dom./feriados)</small>
+            </div>
+            <div class="saldo-sep">−</div>
+            <div class="saldo-item saldo-saida">
+                <span class="saldo-label">Utilizadas</span>
+                <strong class="saldo-valor">{{ ind_total.folgas_usadas_count }}d</strong>
+                <small class="saldo-sub">dias de folga usados</small>
+            </div>
+            <div class="saldo-sep">=</div>
+            <div class="saldo-item {% if ind_total.folga_bruto_saldo_min > 0 %}saldo-resultado{% else %}saldo-zero{% endif %}">
+                <span class="saldo-label">Saldo Disponível</span>
+                <strong class="saldo-valor">{{ '%.1f'|format(ind_total.folga_bruto_saldo_min / JORNADA_MIN) }}d</strong>
+                <small class="saldo-sub">{{ hhmm(ind_total.folga_bruto_saldo_min) }}h</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── OPÇÕES DO COLABORADOR ──────────────────────────────────── -->
+    <div class="opcoes-card">
+
+    <!-- ─── DESCONTO DE HORAS EXTRAS ─────────────────────────────── -->
+    <details class="opcao-item">
+        <summary>&#8987; Solicitar Desconto de Horas Extras</summary>
+        {% set saldo_extra_h = '%.2f'|format(ind_total.extra_saldo_min / 60) %}
+        {% if ind_total.extra_saldo_min > 0 %}
+        <form method="post"
+              action="{{ url_for('colaborador_desconto_extra', collab_id=collab.id) }}">
+            <input type="hidden" name="month" value="{{ '%s-%02d'|format(year, month) }}">
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end">
+                <div>
+                    <label style="display:block;font-size:.82rem;margin-bottom:.25rem">
+                        Horas a descontar (máx: {{ hhmm(ind_total.extra_saldo_min) }}h)
+                    </label>
+                    <input type="number" name="horas" step="0.25" min="0.25"
+                           max="{{ saldo_extra_h }}"
+                           placeholder="Ex: 2" required style="width:100px">
+                </div>
+                <div style="flex:1;min-width:160px">
+                    <label style="display:block;font-size:.82rem;margin-bottom:.25rem">Observação</label>
+                    <input type="text" name="obs" value="Desconto de horas extras">
+                </div>
+                <button class="btn" type="submit"
+                        onclick="return confirm('Confirmar desconto de horas extras?')">
+                    Confirmar Desconto
+                </button>
+            </div>
+        </form>
+        {% else %}
+        <p style="color:var(--text-muted);padding:.5rem 0;font-size:.9rem">
+            &#9888; Sem saldo de horas extras disponível para desconto.
+        </p>
+        {% endif %}
+    </details>
+
+    <!-- ─── USO DE FOLGA ─────────────────────────────────────────── -->
+    <details class="opcao-item">
+        <summary>&#127774; Registrar Uso de Folga (7:20h = 1 dia)</summary>
+        {% if ind_total.folga_bruto_saldo_min >= JORNADA_MIN %}
+        <form method="post"
+              action="{{ url_for('colaborador_usar_folga_ponto', collab_id=collab.id) }}">
+            <input type="hidden" name="month" value="{{ '%s-%02d'|format(year, month) }}">
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end">
+                <div>
+                    <label style="display:block;font-size:.82rem;margin-bottom:.25rem">Data da folga utilizada</label>
+                    <input type="date" name="data_referencia" value="{{ today }}" required>
+                </div>
+                <div style="flex:1;min-width:160px">
+                    <label style="display:block;font-size:.82rem;margin-bottom:.25rem">Observação</label>
+                    <input type="text" name="obs" value="Folga utilizada">
+                </div>
+                <button class="btn" type="submit"
+                        onclick="return confirm('Registrar 1 dia de folga (7:20h) para {{ collab.name }}?')">
+                    Registrar Folga
+                </button>
+            </div>
+        </form>
+        {% else %}
+        <p style="color:var(--text-muted);padding:.5rem 0;font-size:.9rem">
+            &#9888; Saldo insuficiente. É necessário pelo menos 7:20h (1 dia completo) de folga.
+            Saldo atual: {{ hhmm(ind_total.folga_bruto_saldo_min) }}h.
+        </p>
+        {% endif %}
+    </details>
+
+    <!-- ─── HORÁRIOS DE TRABALHO ─────────────────────────────────── -->
+    <details class="opcao-item" {% if sched_turnos %}open{% endif %}>
+        <summary>&#128336; Meus Horários de Trabalho</summary>
+        <p style="font-size:.82rem;color:var(--text-muted);margin:.5rem 0 .75rem">
+            Defina seu horário para receber lembretes automáticos caso esqueça de bater o ponto.
+            O bot notificará 20 minutos após o horário previsto se a batida não for registrada.
+        </p>
+        <form method="post" action="{{ url_for('colaborador_salvar_schedule', collab_id=collab.id) }}"
+              id="form-schedule">
+            <input type="hidden" name="month" value="{{ '%s-%02d'|format(year, month) }}">
+
+            <div id="turnos-container">
+            {% set turnos_list = sched_turnos if sched_turnos else [{}] %}
+            {% for turno in turnos_list %}
+            {% set i = loop.index0 %}
+            <div class="turno-bloco" style="border:1px solid var(--line);border-radius:8px;padding:.75rem;margin-bottom:.65rem">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+                    <strong style="font-size:.82rem;color:var(--text)">
+                        {% if i == 0 %}Turno Principal{% else %}Turno Extra {{ i }}{% endif %}
+                    </strong>
+                    {% if i > 0 %}
+                    <button type="button" class="btn" onclick="this.closest('.turno-bloco').remove()"
+                            style="background:#dc2626;border-color:#dc2626;padding:.2rem .5rem;font-size:.78rem">
+                        &#10006;
+                    </button>
+                    {% endif %}
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem">
+                    <div>
+                        <label style="display:block;font-size:.78rem;margin-bottom:.2rem">Entrada</label>
+                        <input type="time" name="entrada_{{ i }}" value="{{ turno.get('entrada','') }}" required style="width:100%">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:.78rem;margin-bottom:.2rem">Saída p/ intervalo</label>
+                        <input type="time" name="saida_intervalo_{{ i }}" value="{{ turno.get('saida_intervalo','') }}" style="width:100%">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:.78rem;margin-bottom:.2rem">Volta do intervalo</label>
+                        <input type="time" name="volta_intervalo_{{ i }}" value="{{ turno.get('volta_intervalo','') }}" style="width:100%">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:.78rem;margin-bottom:.2rem">Saída final</label>
+                        <input type="time" name="saida_final_{{ i }}" value="{{ turno.get('saida_final','') }}" style="width:100%">
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            </div>
+
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
+                <button type="button" id="btn-add-turno" class="btn btn-ghost"
+                        style="font-size:.82rem;color:var(--primary);border-color:var(--primary)">&#43; Adicionar turno extra</button>
+                <button type="submit" class="btn">Salvar horários</button>
+                {% if sched_turnos %}
+                <button type="submit" name="entrada_0" value=""
+                        class="btn" style="background:#dc2626;border-color:#dc2626"
+                        onclick="return confirm('Remover todos os horários cadastrados?')">
+                    &#10006; Limpar
+                </button>
+                {% endif %}
+            </div>
+        </form>
+    </details>
+
+    <script>
+    (function () {
+        var container = document.getElementById('turnos-container');
+        var btn = document.getElementById('btn-add-turno');
+        if (!btn || !container) return;
+        btn.addEventListener('click', function () {
+            var idx = container.querySelectorAll('.turno-bloco').length;
+            if (idx >= 5) { alert('Máximo de 5 turnos.'); return; }
+            var div = document.createElement('div');
+            div.className = 'turno-bloco';
+            div.style.cssText = 'border:1px solid var(--line);border-radius:8px;padding:.75rem;margin-bottom:.65rem';
+            div.innerHTML =
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
+                    '<strong style="font-size:.82rem;color:var(--text)">Turno Extra ' + idx + '</strong>' +
+                    '<button type="button" class="btn" onclick="this.closest(\'.turno-bloco\').remove()" ' +
+                    'style="background:#dc2626;border-color:#dc2626;padding:.2rem .5rem;font-size:.78rem">✕</button>' +
+                '</div>' +
+                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem">' +
+                    '<div><label style="display:block;font-size:.78rem;margin-bottom:.2rem">Entrada</label>' +
+                    '<input type="time" name="entrada_' + idx + '" required style="width:100%"></div>' +
+                    '<div><label style="display:block;font-size:.78rem;margin-bottom:.2rem">Saída p/ intervalo</label>' +
+                    '<input type="time" name="saida_intervalo_' + idx + '" style="width:100%"></div>' +
+                    '<div><label style="display:block;font-size:.78rem;margin-bottom:.2rem">Volta do intervalo</label>' +
+                    '<input type="time" name="volta_intervalo_' + idx + '" style="width:100%"></div>' +
+                    '<div><label style="display:block;font-size:.78rem;margin-bottom:.2rem">Saída final</label>' +
+                    '<input type="time" name="saida_final_' + idx + '" style="width:100%"></div>' +
+                '</div>';
+            container.appendChild(div);
+        });
+    })();
+    </script>
+
+    <!-- ─── NOTIFICAÇÕES WHATSAPP ─────────────────────────────────── -->
+    <details class="opcao-item">
+        <summary>&#128242; Notificações WhatsApp</summary>
+        <p style="font-size:.85rem;color:var(--text-muted);margin:.5rem 0 .75rem">
+            Informe seu número com DDD para receber confirmação de ponto e alertas direto no WhatsApp.
+        </p>
+        <form method="post" action="{{ url_for('colaborador_salvar_whatsapp', collab_id=collab.id) }}">
+            <input type="hidden" name="month" value="{{ '%s-%02d'|format(year, month) }}">
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end">
+                <div style="flex:1;min-width:200px">
+                    <label style="display:block;font-size:.82rem;margin-bottom:.25rem">
+                        Número (DDD + número, só dígitos ou formatado)
+                    </label>
+                    <input type="tel" name="whatsapp"
+                           placeholder="11999999999"
+                           value="{{ collab.whatsapp or '' }}"
+                           style="width:100%">
+                </div>
+                <button class="btn" type="submit">Salvar</button>
+                {% if collab.whatsapp %}
+                <button class="btn" type="submit" name="whatsapp" value=""
+                        style="background:#dc2626;border-color:#dc2626"
+                        onclick="return confirm('Remover número de WhatsApp?')">
+                    &#10006; Remover
+                </button>
+                {% endif %}
+            </div>
+            {% if collab.whatsapp %}
+            <p style="font-size:.8rem;color:#059669;margin-top:.5rem">
+                &#10003; Ativo: {{ collab.whatsapp }}
+            </p>
+            {% endif %}
+        </form>
+        {% if collab.whatsapp %}
+        <form method="post" action="{{ url_for('colaborador_whatsapp_teste', collab_id=collab.id) }}"
+              style="margin-top:.5rem">
+            <input type="hidden" name="month" value="{{ '%s-%02d'|format(year, month) }}">
+            <button class="btn" type="submit"
+                    style="background:#075e54;border-color:#075e54;color:#fff">
+                &#128228; Enviar mensagem teste
+            </button>
+        </form>
+        {% endif %}
+    </details>
+
+    <!-- ─── FERIADOS DO MÊS ──────────────────────────────────────── -->
+    {% if feriados_mes %}
+    <details class="daily-rate-form" style="margin-bottom:1rem">
+        <summary>&#128197; Feriados em {{ month_label }} ({{ feriados_mes|length }})</summary>
+        <ul style="list-style:none;padding:0;margin:.5rem 0 0">
+            {% for f in feriados_mes %}
+            <li style="padding:.25rem 0;font-size:.9rem;border-bottom:1px solid rgba(255,255,255,.06)">
+                &#128197; <strong>{{ f.holiday_date.strftime('%d/%m') }}</strong>
+                &nbsp;{{ f.descricao }}
+            </li>
+            {% endfor %}
+        </ul>
+    </details>
+    {% endif %}
+
+    <!-- ─── JORNADAS INCOMPLETAS ─────────────────────────────────── -->
+    {% if ind_mes.dias_incompletos %}
+    <div class="alert alert-warning" style="margin-bottom:1rem">
+        <strong>&#9888; Jornadas Incompletas no mês:</strong>
+        <ul style="margin:.5rem 0 0;padding-left:1.2rem">
+            {% for d in ind_mes.dias_incompletos %}
+            <li>{{ d }}</li>
+            {% endfor %}
+        </ul>
+        <p style="margin:.5rem 0 0;font-size:.85rem">
+            Os dias marcados como incompletos ficam suspensos até que uma correção
+            administrativa seja realizada.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- ─── ALTERAR SENHA ────────────────────────────────────────── -->
+    <details class="opcao-item">
+        <summary>&#128274; Alterar Senha</summary>
+        <form method="post" action="{{ url_for('colaborador_alterar_senha', collab_id=collab.id) }}"
+              style="margin-top:.75rem">
+            <input type="hidden" name="month" value="{{ '%s-%02d'|format(year, month) }}">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem .75rem">
+                <div>
+                    <label style="display:block;font-size:.82rem;margin-bottom:.25rem">Senha atual</label>
+                    <input type="password" name="senha_atual" required autocomplete="current-password" style="width:100%">
+                </div>
+                <div>
+                    <label style="display:block;font-size:.82rem;margin-bottom:.25rem">Nova senha</label>
+                    <input type="password" name="senha_nova" required autocomplete="new-password" minlength="4" style="width:100%">
+                </div>
+                <div>
+                    <label style="display:block;font-size:.82rem;margin-bottom:.25rem">Confirmar nova senha</label>
+                    <input type="password" name="senha_conf" required autocomplete="new-password" minlength="4" style="width:100%">
+                </div>
+            </div>
+            <button class="btn" type="submit" style="margin-top:.6rem">Salvar nova senha</button>
+        </form>
+        {% if collab.whatsapp %}
+        <form method="post" action="{{ url_for('ponto_recuperar_senha') }}" style="margin-top:.5rem">
+            <input type="hidden" name="nome" value="{{ collab.name }}">
+            <button type="submit" class="btn btn-ghost"
+                    style="font-size:.82rem;color:var(--text-muted);border-color:var(--line)"
+                    onclick="return confirm('Enviar senha temporária para {{ collab.whatsapp }}?')">
+                &#128272; Esqueci a senha atual — enviar nova por WhatsApp
+            </button>
+        </form>
+        {% endif %}
+    </details>
+
+    </div><!-- /.opcoes-card -->
+
+    <!-- ─── HISTÓRICO DE AJUSTES ──────────────────────────────────── -->
+    {% if ajustes %}
+    <details class="daily-rate-form">
+        <summary>&#128196; Histórico de Ajustes (últimos {{ ajustes|length }})</summary>
+        <table class="hist-table" style="width:100%;margin-top:.75rem;font-size:.85rem">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                    <th>Observação</th>
+                    <th>Por</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for a in ajustes %}
+            <tr>
+                <td>{{ a.created_at.strftime('%d/%m/%Y') }}</td>
+                <td>
+                    {% if a.tipo == 'desconto_extra' %}
+                    <span style="color:#f59e0b">&#8987; Extra</span>
+                    {% else %}
+                    <span style="color:#6ee7b7">&#127774; Folga</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if a.tipo == 'desconto_extra' %}
+                    -{{ fmt_min(a.minutos) }}h
+                    {% else %}
+                    1 dia ({{ fmt_min(JORNADA_MIN) }}h)
+                    {% endif %}
+                </td>
+                <td>{{ a.obs or '—' }}</td>
+                <td>{{ a.criado_por }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </details>
+    {% endif %}
+
+</div>
+
+<!-- ─── LEGENDA DA REGRA DA CISÃO ────────────────────────────────────────── -->
+<div style="max-width:860px;margin:1.5rem auto 2rem;padding:0 1rem">
+    <details>
+        <summary style="cursor:pointer;font-size:.85rem;color:var(--text-muted)">
+            &#128712; Entenda a Regra da Cisão
+        </summary>
+        <div style="font-size:.82rem;color:var(--text-muted);line-height:1.6;margin-top:.75rem;
+                    background:rgba(255,255,255,.04);padding:1rem;border-radius:8px">
+            <p><strong>Jornada Padrão:</strong> 7:20h (7 horas e 20 minutos) por dia.</p>
+            <p><strong>H Normais:</strong> Acumula até 7:20h por dia em dias regulares (segunda a sábado, exceto feriados).</p>
+            <p><strong>Folga Bruta:</strong> Em domingos ou feriados trabalhados, as horas (até 7:20h) vão para o banco de folgas.</p>
+            <p><strong>R$ Extra:</strong> Todo tempo além de 7:20h em qualquer dia gera valor financeiro:
+                <em>minutos_excedentes × (diária ÷ 440)</em>.</p>
+            <p><strong>Desconto de Extras:</strong> Bloqueado se o saldo de R$ Extra for menor que o solicitado.</p>
+            <p><strong>Uso de Folga:</strong> Bloqueado se o saldo for menor que 7:20h (1 dia completo).</p>
+            <p><strong>Jornada Incompleta:</strong> Dias com batida de abertura sem fechamento ficam suspensos no cálculo.</p>
+        </div>
+    </details>
+</div>
+
+<style>
+/* ── Card de opções do colaborador ─────────────────────────────────── */
+.opcoes-card {
+    background: var(--card, rgba(255,255,255,.05));
+    border: 1px solid var(--line, rgba(255,255,255,.1));
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+}
+.opcao-item {
+    border-bottom: 1px solid var(--line, rgba(255,255,255,.08));
+}
+.opcao-item:last-child { border-bottom: none; }
+
+.opcao-item > summary {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .85rem 1.1rem;
+    cursor: pointer;
+    list-style: none;
+    font-size: .92rem;
+    font-weight: 500;
+    color: var(--text);
+    transition: background .15s;
+    user-select: none;
+    position: relative;
+}
+.opcao-item > summary::-webkit-details-marker { display: none; }
+.opcao-item > summary::after {
+    content: '›';
+    font-size: 1.2rem;
+    line-height: 1;
+    margin-left: auto;
+    transition: transform .2s;
+    color: var(--text-muted);
+}
+.opcao-item[open] > summary::after { transform: rotate(90deg); }
+.opcao-item > summary:hover { background: rgba(255,255,255,.06); }
+.opcao-item[open] > summary { background: rgba(255,255,255,.04); }
+
+.opcao-item > :not(summary):not(script) {
+    padding: .75rem 1.1rem 1rem;
+    border-top: 1px solid var(--line, rgba(255,255,255,.06));
+}
+</style>
+
+{% endblock %}

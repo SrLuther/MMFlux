@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}Feriados | MultiMax{% endblock %}
+
+{% block content %}
+<section class="hist-hero">
+    <div class="hist-hero-back">
+        <a class="btn btn-ghost" href="{{ url_for('index') }}">&#8592; Voltar</a>
+    </div>
+    <div class="hist-hero-body">
+        <p class="hero-tag">&#128197; Gestão de Feriados</p>
+        <h2 class="hist-name">Feriados Cadastrados</h2>
+        <p style="color:var(--text-muted);font-size:.9rem">
+            Ao cadastrar um feriado, as metas de horas de todos os colaboradores são
+            recalculadas automaticamente para o período afetado.
+            <br>Feriados trabalhados acumulam <strong>Dias de Folga Bruto</strong> para os colaboradores.
+        </p>
+    </div>
+</section>
+
+<div class="pconf-wrap" style="max-width:700px;margin:0 auto">
+
+    <!-- Formulário de cadastro -->
+    <div class="card" style="margin-bottom:1.5rem">
+        <h3 style="margin:0 0 1rem;font-size:1rem">&#43; Cadastrar novo feriado</h3>
+        <form method="post" action="{{ url_for('feriado_create') }}" class="pconf-form">
+            <div class="pconf-grid" style="grid-template-columns:auto 1fr auto">
+                <div class="pconf-field">
+                    <label>Data</label>
+                    <input type="date" name="holiday_date" required>
+                </div>
+                <div class="pconf-field">
+                    <label>Descrição</label>
+                    <input type="text" name="descricao" required placeholder="Ex: Corpus Christi">
+                </div>
+                <div class="pconf-field" style="justify-content:flex-end;padding-top:1.6rem">
+                    <button class="btn" type="submit">Cadastrar</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Lista de feriados -->
+    {% if feriados %}
+    <table class="hist-table" style="width:100%">
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Descrição</th>
+                <th>Dia</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% set dias_semana = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'] %}
+        {% for f in feriados %}
+        <tr>
+            <td>{{ f.holiday_date.strftime('%d/%m/%Y') }}</td>
+            <td>{{ f.descricao }}</td>
+            <td>
+                <span class="{% if f.holiday_date.weekday() == 6 %}pill{% endif %}">
+                    {{ dias_semana[f.holiday_date.weekday()] }}
+                </span>
+            </td>
+            <td style="text-align:right">
+                <form method="post"
+                      action="{{ url_for('feriado_delete', feriado_id=f.id) }}"
+                      onsubmit="return confirm('Remover feriado {{ f.descricao }}?')">
+                    <button class="btn btn-ghost" type="submit"
+                            style="font-size:.8rem;padding:.25rem .6rem">
+                        &#10005; Remover
+                    </button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="text-align:center;color:var(--text-muted);padding:2rem">
+        Nenhum feriado cadastrado ainda.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

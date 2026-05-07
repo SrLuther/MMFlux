@@ -1,4 +1,4 @@
-const CACHE = "mmflux-v2";
+const CACHE = "mmflux-v6";
 const OFFLINE = "/offline";
 
 const PRECACHE = [

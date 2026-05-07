@@ -39,10 +39,13 @@ def _candidate_urls() -> list[str]:
 
 
 def _post(
-    mensagem: str, origin: str = "fluxos", extra: dict | None = None
+    mensagem: str, origin: str = "fluxos", extra: dict | None = None,
+    para: str | None = None,
 ) -> None:
     """Tenta enviar mensagem para cada URL candidata; falha silenciosamente."""
     payload: dict = {"mensagem": mensagem, "origin": origin}
+    if para:
+        payload["para"] = para
     if extra:
         payload.update(extra)
     headers = {"Content-Type": "application/json"}
@@ -65,13 +68,13 @@ def _post(
 _LINK = "🔗 https://multimax.tec.br"
 
 
-def send(mensagem: str, origin: str = "fluxos") -> None:
+def send(mensagem: str, origin: str = "fluxos", para: str | None = None) -> None:
     """Envia notificacao em thread separada para nao bloquear a requisicao."""
     mensagem = (mensagem or "").strip()
     if not mensagem:
         return
     mensagem = f"{mensagem}\n\n{_LINK}"
-    t = threading.Thread(target=_post, args=(mensagem, origin), daemon=True)
+    t = threading.Thread(target=_post, args=(mensagem, origin, None, para), daemon=True)
     t.start()
 
 
@@ -227,3 +230,101 @@ def resumo_geral(
         f"*Total líquido:  {total_net:.1f}h ({totals['days']} dias)*",
     ]
     send("\n".join(linhas), origin="fluxos_resumo_geral")
+
+
+# ── Notificações de Ponto Eletrônico (Bloco 6) ────────────────────────────
+
+_TIPO_LABELS: dict[str, str] = {
+    "entrada": "Entrada",
+    "intervalo_saida": "Saída p/ Intervalo",
+    "intervalo_retorno": "Retorno do Intervalo",
+    "saida_final": "Saída Final",
+    "extra": "Turno Extra",
+    "—": "Registro",
+}
+
+
+def ponto_registrado(
+    collab_name: str,
+    data_str: str,
+    hora_str: str,
+    tipo: str = "—",
+    origin: str = "automatico",
+    para: str | None = None,
+) -> None:
+    """Notifica registro de ponto bem-sucedido."""
+    tipo_label = _TIPO_LABELS.get(tipo, tipo.replace("_", " ").title())
+    origem_label = {
+        "automatico": "OCR/câmera",
+        "manual": "manual",
+        "admin": "administrador",
+    }.get(origin, origin)
+    send(
+        f"✅ *Ponto Registrado — MultiMax*\n"
+        f"👤 {collab_name}\n"
+        f"📅 {data_str}  🕐 {hora_str}\n"
+        f"🏷️ {tipo_label}  •  📋 Origem: {origem_label}",
+        origin="ponto_registrado",
+        para=para,
+    )
+
+
+def jornada_incompleta(collab_name: str, data_str: str, para: str | None = None) -> None:
+    """Alerta de jornada incompleta — batida sem par de fechamento."""
+    send(
+        f"⚠️ *Jornada Incompleta — MultiMax*\n"
+        f"👤 {collab_name}\n"
+        f"📅 {data_str}\n"
+        "Existe uma batida de abertura sem o respectivo fechamento. "
+        "Aguardando correção administrativa ou nova batida.",
+        origin="ponto_jornada_incompleta",
+        para=para,
+    )
+
+
+def lembrete_saida(
+    collab_name: str,
+    data_str: str,
+    expected_time: str,
+    tipo: str,
+    para: str | None = None,
+) -> None:
+    """Lembrete de ponto não registrado 20 min após o horário previsto."""
+    _labels = {
+        "intervalo_saida": "saída para o intervalo",
+        "saida_final": "saída final",
+    }
+    tipo_label = _labels.get(tipo, tipo.replace("_", " "))
+    send(
+        f"⏰ *Lembrete de Ponto — MultiMax*\n"
+        f"👤 {collab_name}\n"
+        f"📅 {data_str}\n"
+        f"Você ainda não registrou sua *{tipo_label}*.\n"
+        f"Horário previsto: *{expected_time}* (já passou 20 minutos).\n"
+        f"Registre seu ponto o quanto antes!",
+        origin="ponto_lembrete",
+        para=para,
+    )
+
+
+def sequencia_quebrada(collab_name: str, data_str: str, detalhe: str) -> None:
+    """Alerta de sequência de ponto inválida (ex: duas entradas seguidas)."""
+    send(
+        f"🔴 *Sequência de Ponto Inválida — MultiMax*\n"
+        f"👤 {collab_name}\n"
+        f"📅 {data_str}\n"
+        f"⚠️ {detalhe}",
+        origin="ponto_sequencia_quebrada",
+    )
+
+
+def ponto_em_aberto(collab_name: str, horario_previsto: str) -> None:
+    """Alerta de ponto em aberto — colaborador não bateu no horário previsto."""
+    send(
+        f"🔔 *Ponto em Aberto — MultiMax*\n"
+        f"👤 {collab_name}\n"
+        f"🕐 Horário previsto: {horario_previsto}\n"
+        "Nenhum registro foi realizado em até 20 minutos após o horário esperado. "
+        "Verifique a situação.",
+        origin="ponto_em_aberto",
+    )
