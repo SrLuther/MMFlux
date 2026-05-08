@@ -3165,7 +3165,7 @@ def admin_sistema():
     )
 
 
-@app.post("/admin/sistema/backup")
+@app.route("/admin/sistema/backup", methods=["GET", "POST"])
 @login_required
 def admin_sistema_backup():
     """Dispara um backup manual imediato."""
