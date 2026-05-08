@@ -833,7 +833,7 @@
 
     <div style="padding:1rem 1.25rem;overflow-y:auto;max-height:70vh">
         <!-- Diagnóstico -->
-        <div id="mcj-diagnostico" style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:.65rem .85rem;margin-bottom:1rem;font-size:.84rem;color:#f59e0b;display:none"></div>
+        <div id="mcj-diagnostico" style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:.65rem .85rem;margin-bottom:1rem;font-size:.84rem;color:#92400e;display:none"></div>
 
         <!-- Lista de batidas existentes -->
         <p style="font-size:.8rem;font-weight:600;color:var(--muted);margin:0 0 .4rem;text-transform:uppercase;letter-spacing:.04em">Batidas do dia</p>
@@ -913,18 +913,18 @@
                 }
 
                 if (!data.punches || !data.punches.length) {
-                    punchesBox.innerHTML = '<p style="color:#94a3b8;font-size:.84rem;font-style:italic">Nenhuma batida encontrada neste dia.</p>';
+                    punchesBox.innerHTML = '<p style="color:var(--muted);font-size:.84rem;font-style:italic">Nenhuma batida encontrada neste dia.</p>';
                     return;
                 }
 
                 var rows = '';
                 data.punches.forEach(function (p) {
-                    var originColor = p.origin === 'admin' ? '#f59e0b' : p.origin === 'manual' ? '#818cf8' : '#94a3b8';
+                    var originColor = p.origin === 'admin' ? '#b45309' : p.origin === 'manual' ? '#4338ca' : '#64748b';
                     var originLabel = p.origin === 'admin' ? 'admin' : p.origin === 'manual' ? 'manual' : 'auto';
-                    rows += '<div style="display:flex;align-items:center;gap:.5rem;padding:.35rem .5rem;border-bottom:1px solid #334155">';
-                    rows += '<span style="font-weight:600;color:#f1f5f9;min-width:3.2rem;font-size:.88rem">' + p.time + '</span>';
-                    rows += '<span style="flex:1;color:#f1f5f9;font-size:.84rem">' + p.type_label + '</span>';
-                    rows += '<span style="font-size:.75rem;color:' + originColor + ';min-width:3rem;text-align:center">' + originLabel + '</span>';
+                    rows += '<div style="display:flex;align-items:center;gap:.5rem;padding:.35rem .5rem;border-bottom:1px solid var(--line)">';
+                    rows += '<span style="font-weight:700;color:var(--text);min-width:3.2rem;font-size:.88rem">' + p.time + '</span>';
+                    rows += '<span style="flex:1;color:var(--text);font-size:.84rem">' + p.type_label + '</span>';
+                    rows += '<span style="font-size:.75rem;color:' + originColor + ';min-width:3rem;text-align:center;font-weight:600">' + originLabel + '</span>';
                     rows += '<button type="button"'
                         + ' style="background:#dc2626;border:none;border-radius:5px;color:#fff;padding:.2rem .5rem;cursor:pointer;font-size:.78rem;flex-shrink:0"'
                         + ' data-action="delete-punch"'
@@ -935,11 +935,11 @@
                         + ' data-collab="' + collabId + '">&#10005;</button>';
                     rows += '</div>';
                 });
-                punchesBox.innerHTML = '<div style="border:1px solid #334155;border-radius:7px;overflow:hidden">' + rows + '</div>';
+                punchesBox.innerHTML = '<div style="border:1px solid var(--line);border-radius:7px;overflow:hidden">' + rows + '</div>';
             })
             .catch(function () {
                 subtitle.textContent = 'Erro ao carregar dados.';
-                punchesBox.innerHTML = '<p style="color:#f87171;font-size:.84rem">Falha ao buscar batidas. Tente novamente.</p>';
+                punchesBox.innerHTML = '<p style="color:#dc2626;font-size:.84rem">Falha ao buscar batidas. Tente novamente.</p>';
             });
     }
 
