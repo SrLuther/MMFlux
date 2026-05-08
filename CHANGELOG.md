@@ -2,6 +2,17 @@
 
 <!-- markdownlint-disable MD024 -->
 
+## [0.10.6] - 2026-05-09
+
+### Status do Sistema e Backups
+
+- feat: nova página `/admin/sistema` no menu Admin com métricas de CPU, RAM e disco (requer `psutil`).
+- feat: barra de progresso colorida por nível (verde → âmbar → vermelho) para cada métrica.
+- feat: lista de backups do banco de dados com nome, tamanho e data.
+- feat: botão para backup manual imediato na página de sistema.
+- feat: backup automático diário às 03:00 via thread daemon, mantendo os últimos 3 arquivos em `.db/backups/`.
+- feat: `psutil>=5.9` adicionado ao `requirements.txt`.
+
 ## [0.10.5] - 2026-05-08
 
 ### Registro de Ponto — Tela de Confirmação

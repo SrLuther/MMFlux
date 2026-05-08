@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% block title %}Status do Sistema | MultiMax{% endblock %}
+{% block content %}
+<section class="page-wrap">
+
+  <header class="page-header">
+    <h2>&#128187; Status do Sistema</h2>
+    <p class="sub">CPU, memória, disco e backups do banco de dados.</p>
+  </header>
+
+  {% if not psutil_ok %}
+  <article class="alert alert-warning" style="margin-bottom:1.5rem;">
+    Instale <code>psutil</code> no servidor para exibir métricas de CPU e memória.
+  </article>
+  {% endif %}
+
+  <!-- Métricas -->
+  <div class="sistema-grid">
+
+    <article class="card sistema-card">
+      <div class="sistema-label">CPU</div>
+      {% if psutil_ok %}
+      <div class="sistema-value">{{ cpu_pct | round(1) }}%</div>
+      <div class="sistema-bar-wrap">
+        <div class="sistema-bar {% if cpu_pct > 85 %}sistema-bar-danger{% elif cpu_pct > 60 %}sistema-bar-warn{% endif %}"
+             style="width:{{ [cpu_pct,100]|min }}%"></div>
+      </div>
+      {% else %}
+      <div class="sistema-value muted">—</div>
+      {% endif %}
+    </article>
+
+    <article class="card sistema-card">
+      <div class="sistema-label">Memória RAM</div>
+      {% if psutil_ok %}
+      <div class="sistema-value">{{ ram_pct | round(1) }}%</div>
+      <div class="sistema-sub">{{ ram_used }} / {{ ram_total }}</div>
+      <div class="sistema-bar-wrap">
+        <div class="sistema-bar {% if ram_pct > 85 %}sistema-bar-danger{% elif ram_pct > 60 %}sistema-bar-warn{% endif %}"
+             style="width:{{ [ram_pct,100]|min }}%"></div>
+      </div>
+      {% else %}
+      <div class="sistema-value muted">—</div>
+      {% endif %}
+    </article>
+
+    <article class="card sistema-card">
+      <div class="sistema-label">Disco</div>
+      {% if psutil_ok %}
+      <div class="sistema-value">{{ disk_pct | round(1) }}%</div>
+      <div class="sistema-sub">{{ disk_used }} / {{ disk_total }}</div>
+      <div class="sistema-bar-wrap">
+        <div class="sistema-bar {% if disk_pct > 85 %}sistema-bar-danger{% elif disk_pct > 60 %}sistema-bar-warn{% endif %}"
+             style="width:{{ [disk_pct,100]|min }}%"></div>
+      </div>
+      {% else %}
+      <div class="sistema-value muted">—</div>
+      {% endif %}
+    </article>
+
+    <article class="card sistema-card">
+      <div class="sistema-label">Banco de Dados</div>
+      <div class="sistema-value">{{ db_size }}</div>
+      <div class="sistema-sub">fluxos_zero.db</div>
+    </article>
+
+  </div>
+
+  <!-- Backups -->
+  <article class="card mt-lg">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1rem;">
+      <h3 style="margin:0;">&#128190; Backups do Banco</h3>
+      <form method="post" action="{{ url_for('admin_sistema_backup') }}">
+        <button class="btn" type="submit">&#43; Backup agora</button>
+      </form>
+    </div>
+
+    {% if backups %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Arquivo</th>
+          <th>Tamanho</th>
+          <th>Data</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in backups %}
+        <tr>
+          <td><code>{{ b.name }}</code></td>
+          <td>{{ fmt_bytes(b.size) }}</td>
+          <td>{{ b.mtime.strftime('%d/%m/%Y %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted" style="margin:0;">Nenhum backup encontrado. Clique em <em>Backup agora</em> para criar o primeiro.</p>
+    {% endif %}
+
+    <p class="muted" style="margin-top:.75rem;font-size:.85rem;">
+      O sistema cria um backup automático todo dia às 03:00 e mantém os últimos 3 arquivos.
+    </p>
+  </article>
+
+</section>
+
+<style>
+.sistema-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.sistema-card {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+.sistema-label {
+  font-size: .78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+.sistema-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+.sistema-sub {
+  font-size: .82rem;
+  color: var(--text-soft);
+}
+.sistema-bar-wrap {
+  height: 6px;
+  background: var(--line);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: .25rem;
+}
+.sistema-bar {
+  height: 100%;
+  background: var(--teal);
+  border-radius: 99px;
+  transition: width .4s ease;
+}
+.sistema-bar-warn  { background: #f59e0b; }
+.sistema-bar-danger { background: #ef4444; }
+</style>
+{% endblock %}

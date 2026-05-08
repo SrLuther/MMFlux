@@ -3076,6 +3076,107 @@ with app.app_context():
     ensure_admin()
 
 
+# ---------------------------------------------------------------------------
+# Admin — Status do Sistema e Backups
+# ---------------------------------------------------------------------------
+
+BACKUP_DIR = os.path.join(DB_DIR, "backups")
+os.makedirs(BACKUP_DIR, exist_ok=True)
+MAX_BACKUPS = 3
+
+
+def _do_backup() -> str:
+    """Copia o banco para .db/backups/, mantendo no máximo MAX_BACKUPS arquivos."""
+    import shutil
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest = os.path.join(BACKUP_DIR, f"fluxos_zero_{ts}.db")
+    shutil.copy2(DB_PATH, dest)
+
+    # Remove backups excedentes (mais antigos primeiro)
+    backups = sorted(
+        [f for f in os.listdir(BACKUP_DIR) if f.endswith(".db")],
+        key=lambda f: os.path.getmtime(os.path.join(BACKUP_DIR, f)),
+    )
+    for old in backups[:-MAX_BACKUPS]:
+        try:
+            os.remove(os.path.join(BACKUP_DIR, old))
+        except OSError:
+            pass
+    return dest
+
+
+@app.get("/admin/sistema")
+@login_required
+def admin_sistema():
+    """Página de status do sistema (CPU, RAM, disco) e lista de backups."""
+    import shutil
+    try:
+        import psutil  # type: ignore[import-untyped]
+        cpu_pct   = psutil.cpu_percent(interval=0.5)
+        mem       = psutil.virtual_memory()
+        ram_total = mem.total
+        ram_used  = mem.used
+        ram_pct   = mem.percent
+        disk      = psutil.disk_usage("/")
+        disk_total = disk.total
+        disk_used  = disk.used
+        disk_pct   = disk.percent
+        psutil_ok  = True
+    except ImportError:
+        cpu_pct = ram_total = ram_used = ram_pct = 0
+        disk_total = disk_used = disk_pct = 0
+        psutil_ok = False
+
+    # Tamanho do banco principal
+    db_size = os.path.getsize(DB_PATH) if os.path.isfile(DB_PATH) else 0
+
+    # Lista de backups
+    backups = []
+    for fname in sorted(os.listdir(BACKUP_DIR), reverse=True):
+        if not fname.endswith(".db"):
+            continue
+        fpath = os.path.join(BACKUP_DIR, fname)
+        backups.append({
+            "name": fname,
+            "size": os.path.getsize(fpath),
+            "mtime": datetime.fromtimestamp(os.path.getmtime(fpath)),
+        })
+
+    def fmt_bytes(n: int) -> str:
+        for unit in ("B", "KB", "MB", "GB"):
+            if n < 1024:
+                return f"{n:.1f} {unit}"
+            n /= 1024  # type: ignore[assignment]
+        return f"{n:.1f} TB"
+
+    return render_template(
+        "sistema.html",
+        cpu_pct=cpu_pct,
+        ram_total=fmt_bytes(ram_total),
+        ram_used=fmt_bytes(ram_used),
+        ram_pct=ram_pct,
+        disk_total=fmt_bytes(disk_total),
+        disk_used=fmt_bytes(disk_used),
+        disk_pct=disk_pct,
+        psutil_ok=psutil_ok,
+        db_size=fmt_bytes(db_size),
+        backups=backups,
+        fmt_bytes=fmt_bytes,
+    )
+
+
+@app.post("/admin/sistema/backup")
+@login_required
+def admin_sistema_backup():
+    """Dispara um backup manual imediato."""
+    try:
+        dest = _do_backup()
+        flash(f"Backup criado: {os.path.basename(dest)}", "success")
+    except Exception as exc:  # noqa: BLE001
+        flash(f"Erro ao criar backup: {exc}", "danger")
+    return redirect(url_for("admin_sistema"))
+
+
 if __name__ == "__main__":
     host = os.getenv("FLUXOS_HOST", "0.0.0.0")
     port_raw = os.getenv("FLUXOS_PORT", "5051")
@@ -3144,5 +3245,23 @@ if __name__ == "__main__":
 
     _ta = threading.Thread(target=_alert_loop, daemon=True, name="alert-loop")
     _ta.start()
+
+    def _backup_loop() -> None:
+        """Executa backup diário do banco de dados às 03:00."""
+        while True:
+            now = datetime.now()
+            # Próxima execução às 03:00
+            next_run = now.replace(hour=3, minute=0, second=0, microsecond=0)
+            if next_run <= now:
+                next_run = next_run.replace(day=now.day + 1)
+            time.sleep((next_run - now).total_seconds())
+            try:
+                dest = _do_backup()
+                app.logger.info("[backup] backup criado: %s", dest)
+            except Exception as exc:  # noqa: BLE001
+                app.logger.warning("[backup] erro no backup diário: %s", exc)
+
+    _tb = threading.Thread(target=_backup_loop, daemon=True, name="backup-loop")
+    _tb.start()
 
     app.run(host=host, debug=debug, port=port)
