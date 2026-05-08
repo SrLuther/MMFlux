@@ -8,16 +8,15 @@
     </div>
     <div class="hist-hero-body">
         <p class="hero-tag">&#128197; Gestão de Feriados</p>
-        <h2 class="hist-name">Feriados Cadastrados</h2>
+        <h2 class="hist-name">Feriados</h2>
         <p style="color:var(--text-muted);font-size:.9rem">
-            Ao cadastrar um feriado, as metas de horas de todos os colaboradores são
-            recalculadas automaticamente para o período afetado.
-            <br>Feriados trabalhados acumulam <strong>Dias de Folga Bruto</strong> para os colaboradores.
+            Feriados <strong>ativos</strong> reduzem a meta de horas e geram direito a folga se trabalhados.
+            Feriados <strong>desativados</strong> são tratados como dias comuns.
         </p>
     </div>
 </section>
 
-<div class="pconf-wrap" style="max-width:700px;margin:0 auto">
+<div class="pconf-wrap" style="max-width:780px;margin:0 auto">
 
     <!-- Formulário de cadastro -->
     <div class="card" style="margin-bottom:1.5rem">
@@ -41,34 +40,79 @@
 
     <!-- Lista de feriados -->
     {% if feriados %}
-    <table class="hist-table" style="width:100%">
+    {% set dias_semana = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'] %}
+    <table class="hist-table feriados-table" style="width:100%">
         <thead>
             <tr>
                 <th>Data</th>
                 <th>Descrição</th>
                 <th>Dia</th>
+                <th style="text-align:center">Considerado</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
-        {% set dias_semana = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'] %}
         {% for f in feriados %}
-        <tr>
-            <td>{{ f.holiday_date.strftime('%d/%m/%Y') }}</td>
-            <td>{{ f.descricao }}</td>
+        <tr class="{% if not f.ativo %}feriado-inativo{% endif %}" id="row-{{ f.id }}">
+            <td style="white-space:nowrap;{% if not f.ativo %}color:var(--muted);text-decoration:line-through{% endif %}">
+                {{ f.holiday_date.strftime('%d/%m/%Y') }}
+            </td>
+            <td style="{% if not f.ativo %}color:var(--muted){% endif %}">
+                {{ f.descricao }}
+            </td>
             <td>
-                <span class="{% if f.holiday_date.weekday() == 6 %}pill{% endif %}">
+                <span class="pill" style="font-size:.75rem;padding:.15rem .5rem">
                     {{ dias_semana[f.holiday_date.weekday()] }}
                 </span>
             </td>
-            <td style="text-align:right">
+            <td style="text-align:center">
+                <form method="post" action="{{ url_for('feriado_toggle', feriado_id=f.id) }}" style="display:inline">
+                    <button type="submit" class="feriado-toggle-btn {% if f.ativo %}feriado-ativo{% else %}feriado-desativado{% endif %}"
+                            title="{% if f.ativo %}Clique para desativar{% else %}Clique para ativar{% endif %}">
+                        {% if f.ativo %}&#10003; Ativo{% else %}&#8212; Ignorado{% endif %}
+                    </button>
+                </form>
+            </td>
+            <td style="text-align:right;white-space:nowrap">
+                <button class="btn btn-ghost feriado-edit-btn"
+                        style="font-size:.8rem;padding:.25rem .6rem;margin-right:.25rem"
+                        onclick="toggleEdit({{ f.id }})">
+                    &#9998; Editar
+                </button>
                 <form method="post"
                       action="{{ url_for('feriado_delete', feriado_id=f.id) }}"
-                      onsubmit="return confirm('Remover feriado {{ f.descricao }}?')">
+                      onsubmit="return confirm('Remover feriado {{ f.descricao }}?')"
+                      style="display:inline">
                     <button class="btn btn-ghost" type="submit"
                             style="font-size:.8rem;padding:.25rem .6rem">
-                        &#10005; Remover
+                        &#10005;
                     </button>
+                </form>
+            </td>
+        </tr>
+        <!-- Linha de edição inline -->
+        <tr id="edit-{{ f.id }}" style="display:none;background:var(--line)">
+            <td colspan="5" style="padding:.75rem 1rem">
+                <form method="post" action="{{ url_for('feriado_edit', feriado_id=f.id) }}"
+                      style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap">
+                    <div class="pconf-field" style="flex:0 0 auto">
+                        <label style="font-size:.78rem">Data</label>
+                        <input type="date" name="holiday_date"
+                               value="{{ f.holiday_date.strftime('%Y-%m-%d') }}" required
+                               style="padding:.35rem .6rem;font-size:.9rem;border:1px solid var(--line);border-radius:8px">
+                    </div>
+                    <div class="pconf-field" style="flex:1 1 200px">
+                        <label style="font-size:.78rem">Descrição</label>
+                        <input type="text" name="descricao"
+                               value="{{ f.descricao }}" required
+                               style="padding:.35rem .6rem;font-size:.9rem;border:1px solid var(--line);border-radius:8px;width:100%">
+                    </div>
+                    <div style="display:flex;gap:.5rem">
+                        <button class="btn" type="submit" style="font-size:.85rem;padding:.35rem .8rem">Salvar</button>
+                        <button type="button" class="btn btn-ghost"
+                                style="font-size:.85rem;padding:.35rem .8rem"
+                                onclick="toggleEdit({{ f.id }})">Cancelar</button>
+                    </div>
                 </form>
             </td>
         </tr>
@@ -81,4 +125,32 @@
     </p>
     {% endif %}
 </div>
+
+<style>
+.feriado-toggle-btn {
+    border: none;
+    border-radius: 99px;
+    padding: .2rem .7rem;
+    font-size: .8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .15s;
+}
+.feriado-ativo {
+    background: #d1fae5;
+    color: #065f46;
+}
+.feriado-desativado {
+    background: var(--line);
+    color: var(--muted);
+}
+.feriado-inativo td { opacity: .6; }
+</style>
+
+<script>
+function toggleEdit(id) {
+    const row = document.getElementById('edit-' + id);
+    row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+</script>
 {% endblock %}

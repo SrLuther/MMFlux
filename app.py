@@ -253,6 +253,7 @@ class Holiday(Base):
     id = db.Column(db.Integer, primary_key=True)
     holiday_date = db.Column(db.Date, nullable=False, unique=True, index=True)
     descricao = db.Column(db.String(200), nullable=False)
+    ativo = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
@@ -404,6 +405,15 @@ def ensure_schema() -> None:
         )
         db.session.commit()
 
+    # holiday.ativo (adicionado em v0.10.8)
+    h_cols = db.session.execute(text("PRAGMA table_info(holiday)")).mappings().all()
+    h_col_names = {str(c["name"]) for c in h_cols}
+    if h_col_names and "ativo" not in h_col_names:
+        db.session.execute(
+            text("ALTER TABLE holiday ADD COLUMN ativo BOOLEAN NOT NULL DEFAULT 1")
+        )
+        db.session.commit()
+
 
 def suggest_ponto_password(name: str) -> str:
     """Sugere senha de ponto: 1a letra maiuscula + posicoes alfabeticas ate 4-5 digitos.
@@ -476,8 +486,8 @@ def _fmt_min_hhmm(minutos: int) -> str:
 
 
 def is_feriado(d: date) -> bool:
-    """Verifica se a data é um feriado cadastrado."""
-    return db.session.query(Holiday).filter_by(holiday_date=d).count() > 0
+    """Verifica se a data é um feriado cadastrado e ativo."""
+    return db.session.query(Holiday).filter_by(holiday_date=d, ativo=True).count() > 0
 
 
 def is_folga_ou_domingo(d: date) -> bool:
@@ -2714,7 +2724,7 @@ def acesso():
 @login_required
 def feriados_list():
     """Lista feriados cadastrados."""
-    feriados = Holiday.query.order_by(Holiday.holiday_date.desc()).all()
+    feriados = Holiday.query.order_by(Holiday.holiday_date.asc()).all()
     return render_template("feriados.html", feriados=feriados)
 
 
@@ -2759,6 +2769,52 @@ def feriado_delete(feriado_id: int):
     db.session.delete(f)
     db.session.commit()
     flash(f"Feriado '{desc}' removido.", "info")
+    return redirect(url_for("feriados_list"))
+
+
+@app.route("/feriados/<int:feriado_id>/toggle", methods=["GET", "POST"])
+@login_required
+def feriado_toggle(feriado_id: int):
+    """Ativa ou desativa um feriado (sem remover)."""
+    f = db.session.get(Holiday, feriado_id)
+    if not f:
+        flash("Feriado não encontrado.", "warning")
+        return redirect(url_for("feriados_list"))
+    f.ativo = not f.ativo
+    db.session.commit()
+    status = "ativado" if f.ativo else "desativado"
+    flash(f"Feriado '{f.descricao}' {status}.", "info")
+    return redirect(url_for("feriados_list"))
+
+
+@app.route("/feriados/<int:feriado_id>/edit", methods=["GET", "POST"])
+@login_required
+def feriado_edit(feriado_id: int):
+    """Edita descrição e/ou data de um feriado."""
+    f = db.session.get(Holiday, feriado_id)
+    if not f:
+        flash("Feriado não encontrado.", "warning")
+        return redirect(url_for("feriados_list"))
+    date_raw = (request.form.get("holiday_date") or "").strip()
+    descricao = (request.form.get("descricao") or "").strip()
+    if not date_raw or not descricao:
+        flash("Data e descrição são obrigatórios.", "warning")
+        return redirect(url_for("feriados_list"))
+    try:
+        new_date = datetime.strptime(date_raw, "%Y-%m-%d").date()
+    except ValueError:
+        flash("Data inválida.", "danger")
+        return redirect(url_for("feriados_list"))
+    conflict = Holiday.query.filter(
+        Holiday.holiday_date == new_date, Holiday.id != feriado_id
+    ).first()
+    if conflict:
+        flash(f"Já existe um feriado em {new_date.strftime('%d/%m/%Y')}.", "warning")
+        return redirect(url_for("feriados_list"))
+    f.holiday_date = new_date
+    f.descricao = descricao
+    db.session.commit()
+    flash("Feriado atualizado.", "success")
     return redirect(url_for("feriados_list"))
 
 
@@ -3070,10 +3126,46 @@ def api_ponto_indicadores(collab_id: int):
     )
 
 
+# ---------------------------------------------------------------------------
+# Feriados nacionais do Brasil — pré-carga 2026
+# ---------------------------------------------------------------------------
+
+_FERIADOS_BRASIL_2026: list[tuple[str, str]] = [
+    ("2026-01-01", "Ano Novo"),
+    ("2026-02-16", "Carnaval (Segunda-feira)"),
+    ("2026-02-17", "Carnaval (Terça-feira)"),
+    ("2026-04-03", "Sexta-feira Santa"),
+    ("2026-04-21", "Tiradentes"),
+    ("2026-05-01", "Dia do Trabalho"),
+    ("2026-06-04", "Corpus Christi"),
+    ("2026-09-07", "Independência do Brasil"),
+    ("2026-10-12", "Nossa Senhora Aparecida"),
+    ("2026-11-02", "Finados"),
+    ("2026-11-15", "Proclamação da República"),
+    ("2026-11-20", "Consciência Negra"),
+    ("2026-12-25", "Natal"),
+]
+
+
+def _populate_feriados_2026() -> int:
+    """Insere feriados nacionais de 2026 que ainda não existem no banco."""
+    from datetime import date as _date
+    added = 0
+    for date_str, descricao in _FERIADOS_BRASIL_2026:
+        d = _date.fromisoformat(date_str)
+        if not Holiday.query.filter_by(holiday_date=d).first():
+            db.session.add(Holiday(holiday_date=d, descricao=descricao))
+            added += 1
+    if added:
+        db.session.commit()
+    return added
+
+
 with app.app_context():
     db.create_all()
     ensure_schema()
     ensure_admin()
+    _populate_feriados_2026()
 
 
 # ---------------------------------------------------------------------------

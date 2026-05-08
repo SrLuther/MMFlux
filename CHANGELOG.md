@@ -2,6 +2,18 @@
 
 <!-- markdownlint-disable MD024 -->
 
+## [0.10.8] - 2026-05-08
+
+### Feriados
+
+- feat: coluna `ativo` no modelo `Holiday` — feriados podem ser desativados sem ser removidos.
+- feat: feriados desativados são tratados como dias comuns (ponto, meta, folga não são afetados).
+- feat: 13 feriados nacionais de 2026 pré-carregados automaticamente no primeiro boot.
+- feat: botão **Ativo / Ignorado** em cada feriado para alternar status com um clique.
+- feat: botão **Editar** inline por feriado — permite alterar data e descrição sem reload.
+- feat: feriados exibidos em ordem cronológica crescente.
+- feat: feriados inativos exibidos com estilo desbotado e riscado.
+
 ## [0.10.7] - 2026-05-08
 
 ### Status do Sistema
