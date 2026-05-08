@@ -509,7 +509,7 @@
                             <form class="small-form" method="post" action="{{ url_for('update_entry', entry_id=e.id) }}">
                                 <input type="hidden" name="_from_history" value="{{ collab.id }}">
                                 <input type="date" name="entry_date" value="{{ e.entry_date.strftime('%Y-%m-%d') }}" required>
-                                <input type="number" name="hours" step="0.5" value="{{ e.hours }}" required>
+                                <input type="text" name="hours" value="{{ e.hours }}" placeholder="ex: 7:20 ou 7.5" required>
                                 <input type="text" name="note" value="{{ e.note or '' }}" placeholder="Observação">
                                 <label class="gives-folga-label">
                                     <input type="checkbox" name="gives_folga" value="1" {% if e.gives_folga %}checked{% endif %}> D. Folga

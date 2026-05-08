@@ -97,7 +97,7 @@
                 {% endfor %}
             </select>
             <input type="date" name="entry_date" required>
-            <input type="number" name="hours" step="0.5" placeholder="Horas (+/-)" required>
+            <input type="text" name="hours" placeholder="Horas ex: 7:20 ou 7.5" required>
             <input type="text" name="note" placeholder="Observacao">
             <label class="gives-folga-label">
                 <input type="checkbox" name="gives_folga" value="1"> D. Folga
@@ -256,7 +256,7 @@
                             <summary>Editar</summary>
                             <form class="small-form" method="post" action="{{ url_for('update_entry', entry_id=e.id) }}">
                                 <input type="date" name="entry_date" value="{{ e.entry_date.strftime('%Y-%m-%d') }}" required>
-                                <input type="number" name="hours" step="0.5" value="{{ e.hours }}" required>
+                                <input type="text" name="hours" value="{{ e.hours }}" placeholder="ex: 7:20 ou 7.5" required>
                                 <input type="text" name="note" value="{{ e.note or '' }}" placeholder="Observacao">
                                 <label class="gives-folga-label">
                                     <input type="checkbox" name="gives_folga" value="1" {% if e.gives_folga %}checked{% endif %}> D. Folga

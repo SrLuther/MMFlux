@@ -427,12 +427,34 @@ def suggest_ponto_password(name: str) -> str:
 
 
 def parse_decimal(raw: str) -> Decimal:
-    """Converta string de horas em Decimal aceitando virgula ou ponto."""
-    try:
-        value = Decimal(raw.replace(",", ".").strip())
-    except (InvalidOperation, AttributeError):
+    """Converte string de horas em Decimal.
+
+    Aceita:
+      - Decimal com ponto ou vírgula: "7.5", "7,5"
+      - Formato H:MM (horas:minutos): "7:20" → Decimal("7.3333...")
+      - Formato negativo: "-7:20", "-7.5"
+    """
+    if not isinstance(raw, str):
         raise ValueError("Valor de horas invalido.")
-    return value
+    raw = raw.strip().replace(",", ".")
+    negative = raw.startswith("-")
+    raw_abs = raw.lstrip("-").strip()
+    if ":" in raw_abs:
+        parts = raw_abs.split(":", 1)
+        try:
+            h = int(parts[0])
+            m = int(parts[1])
+        except ValueError:
+            raise ValueError("Formato de horas inválido. Use H:MM ou número decimal (ex: 7:20 ou 7.33).")
+        if not (0 <= m < 60):
+            raise ValueError("Minutos inválidos no formato H:MM (deve ser 00–59).")
+        value = Decimal(h * 60 + m) / Decimal(60)
+    else:
+        try:
+            value = Decimal(raw_abs)
+        except (InvalidOperation, AttributeError):
+            raise ValueError("Valor de horas invalido.")
+    return -value if negative else value
 
 
 def get_setting(key: str, default: str = "") -> str:
