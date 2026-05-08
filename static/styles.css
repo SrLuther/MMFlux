@@ -1380,3 +1380,27 @@ details summary::-webkit-details-marker { display: none; }
 .hist-content tbody tr:hover,
 .ponto-section tbody tr:hover,
 .card tbody tr:hover { background: var(--surface-hover, rgba(0,0,0,.03)); }
+
+/* ── Dialog / Modal ────────────────────────────────────────── */
+dialog {
+  border: none;
+  border-radius: 12px;
+  padding: 0;
+  background: var(--surface, #1e293b);
+  color: var(--text, #f1f5f9);
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  max-width: 480px;
+  width: 95%;
+}
+dialog::backdrop {
+  background: rgba(0, 0, 0, .65);
+  backdrop-filter: blur(2px);
+}
+dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+#modal-corrigir-jornada > div:last-of-type {
+  overflow-y: auto;
+  max-height: 72vh;
+}
