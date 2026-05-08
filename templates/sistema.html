@@ -94,7 +94,7 @@
         <tr>
           <td><code>{{ b.name }}</code></td>
           <td>{{ fmt_bytes(b.size) }}</td>
-          <td>{{ b.mtime.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td style="white-space:nowrap">{{ b.mtime.strftime('%d/%m/%Y %H:%M') }}</td>
         </tr>
         {% endfor %}
       </tbody>

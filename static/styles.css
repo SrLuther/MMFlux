@@ -146,7 +146,7 @@ body {
     z-index: 0;
 }
 
-/* conteúdo acima das decorações */
+/* conteï¿½do acima das decoraï¿½ï¿½es */
 .hero > * {
     position: relative;
     z-index: 1;
@@ -234,7 +234,7 @@ body {
 }
 .metric-value strong { color: #4ade80; }
 
-/* --- SALDO-BLOCO: layout de equação (acumulado - descontado = saldo) ---- */
+/* --- SALDO-BLOCO: layout de equaï¿½ï¿½o (acumulado - descontado = saldo) ---- */
 .saldo-bloco {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -377,7 +377,7 @@ body {
     font-weight: 600;
 }
 
-/* Dropdown de ações do painel admin */
+/* Dropdown de aï¿½ï¿½es do painel admin */
 .admin-menu-wrap {
     position: relative;
     display: inline-block;
@@ -629,7 +629,7 @@ body {
 }
 .btn-grant-folga:hover { filter: brightness(1.15); }
 
-/* Painéis inline do histórico (Editar, Folga) — empurram o conteúdo, não flutuam */
+/* Painï¿½is inline do histï¿½rico (Editar, Folga) ï¿½ empurram o conteï¿½do, nï¿½o flutuam */
 .hist-inline-panel {
     margin-top: .75rem;
     padding: .85rem 1rem;
@@ -786,7 +786,7 @@ body {
 
 .card-menu form { margin: 0; }
 
-/* Painel de edição expansível abaixo do card */
+/* Painel de ediï¿½ï¿½o expansï¿½vel abaixo do card */
 .card-edit-panel {
     margin-top: .75rem;
     padding-top: .75rem;
@@ -942,7 +942,8 @@ details summary::-webkit-details-marker { display: none; }
 /* ghost em painÃ©is (fundo claro) */
 .panel .btn-ghost,
 .admin-panel .btn-ghost,
-.login-card .btn-ghost {
+.login-card .btn-ghost,
+.page-wrap .btn-ghost {
     background: var(--surface);
     color: var(--navy);
     border: 1.5px solid var(--line);
@@ -1099,7 +1100,7 @@ details summary::-webkit-details-marker { display: none; }
 }
 
 /* =========================================================
-   HISTÓRICO DO COLABORADOR
+   HISTï¿½RICO DO COLABORADOR
    ========================================================= */
 .hist-hero {
     background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 65%, var(--blue-mid) 100%);
@@ -1109,7 +1110,7 @@ details summary::-webkit-details-marker { display: none; }
     overflow: hidden;
 }
 
-/* marca d'água — logo cortada no canto direito */
+/* marca d'ï¿½gua ï¿½ logo cortada no canto direito */
 .hist-hero::after {
     content: '';
     position: absolute;
@@ -1125,7 +1126,7 @@ details summary::-webkit-details-marker { display: none; }
     z-index: 0;
 }
 
-/* garante que o conteúdo fique acima da marca d'água */
+/* garante que o conteï¿½do fique acima da marca d'ï¿½gua */
 .hist-hero > * {
     position: relative;
     z-index: 1;
@@ -1155,7 +1156,7 @@ details summary::-webkit-details-marker { display: none; }
 
 .hist-hero-back { margin-bottom: 0.6rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 
-/* Dropdown de ações no histórico */
+/* Dropdown de aï¿½ï¿½es no histï¿½rico */
 .hist-actions-wrap {
     position: relative;
     display: inline-block;
@@ -1241,7 +1242,7 @@ details summary::-webkit-details-marker { display: none; }
 }
 .hist-action-details > summary::-webkit-details-marker { display: none; }
 .hist-action-details > summary::after {
-    content: '›';
+    content: 'ï¿½';
     margin-left: auto;
     font-size: 1.15rem;
     color: var(--muted);
@@ -1346,7 +1347,7 @@ details summary::-webkit-details-marker { display: none; }
 .mstat.neg { background: #fee2e2; color: #991b1b; }
 .mstat.net { background: #dbeafe; color: var(--navy); }
 
-/* tabela dentro do histórico (o reset global esconde <table>) */
+/* tabela dentro do histï¿½rico (o reset global esconde <table>) */
 .hist-month table,
 .hist-content table,
 .ponto-section table,
