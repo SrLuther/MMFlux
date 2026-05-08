@@ -2234,6 +2234,23 @@ def ponto_upload():
         .all()
     )
 
+    # Turnos do colaborador para sugestão automática de tipo de batida
+    sched_turnos = _get_schedule(collab) if collab else []
+
+    # Batidas já registradas no dia (para saber qual tipo vem a seguir)
+    existing_punches: list[PunchRecord] = []
+    if collab and data.data:
+        try:
+            _pd = datetime.strptime(data.data, "%d/%m/%Y").date()
+            existing_punches = (
+                PunchRecord.query
+                .filter_by(collaborator_id=collab.id, punch_date=_pd)
+                .order_by(PunchRecord.punch_time.asc())
+                .all()
+            )
+        except ValueError:
+            pass
+
     return render_template(
         "ponto_confirmar.html",
         data=data,
@@ -2242,6 +2259,11 @@ def ponto_upload():
         collab=collab,
         collaborators=collaborators,
         existing_count=existing_count,
+        sched_turnos=sched_turnos,
+        existing_punches=[
+            {"type": p.punch_type, "time": p.punch_time.strftime("%H:%M")}
+            for p in existing_punches
+        ],
     )
 
 
@@ -2509,6 +2531,154 @@ def ponto_image(filename: str):
     """Serve as imagens dos comprovantes enviados."""
     from flask import send_from_directory
     return send_from_directory(UPLOAD_FOLDER, filename)
+
+
+# ---------------------------------------------------------------------------
+# Correção de Jornadas Incompletas (admin)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/colaborador/<int:collab_id>/ponto-dia")
+@login_required
+def api_ponto_dia(collab_id: int):
+    """Retorna as batidas de um dia específico e o diagnóstico de incompletude."""
+    collab = db.session.get(Collaborator, collab_id)
+    if not collab:
+        return jsonify({"error": "colaborador não encontrado"}), 404
+
+    date_str = request.args.get("date", "")
+    try:
+        target_date = date.fromisoformat(date_str)
+    except ValueError:
+        return jsonify({"error": "data inválida"}), 400
+
+    punches = (
+        PunchRecord.query
+        .filter_by(collaborator_id=collab_id, punch_date=target_date)
+        .order_by(PunchRecord.punch_time.asc())
+        .all()
+    )
+
+    result = _process_punches_dia(punches)
+
+    TIPOS_LABEL = {
+        "entrada": "Entrada",
+        "intervalo_saida": "Saída p/ Intervalo",
+        "intervalo_retorno": "Retorno do Intervalo",
+        "saida_final": "Saída Final",
+        "extra": "Extra",
+        None: "Legado",
+    }
+
+    # Diagnóstico textual
+    diagnostico = []
+    if result["incompleto"]:
+        all_legacy = all(p.punch_type is None for p in punches)
+        if all_legacy:
+            diagnostico.append(f"Número ímpar de batidas ({len(punches)}): última batida sem par de saída.")
+        else:
+            by_type: dict = {}
+            for p in punches:
+                by_type.setdefault(p.punch_type or "extra", []).append(p)
+            entradas = by_type.get("entrada", [])
+            int_saidas = by_type.get("intervalo_saida", [])
+            int_retornos = by_type.get("intervalo_retorno", [])
+            saidas = by_type.get("saida_final", [])
+            extras = by_type.get("extra", [])
+            if entradas and not int_saidas and not saidas:
+                diagnostico.append("Entrada registrada sem saída final.")
+            elif entradas and int_saidas and int_retornos and not saidas:
+                diagnostico.append("Retorno do intervalo registrado sem saída final.")
+            elif entradas and int_saidas and not int_retornos and not saidas:
+                diagnostico.append("Saída para intervalo registrada sem retorno nem saída final.")
+            if len(extras) % 2 != 0:
+                diagnostico.append(f"Batidas extras em número ímpar ({len(extras)}).")
+        if not diagnostico:
+            diagnostico.append("Jornada incompleta: verifique as batidas abaixo.")
+
+    return jsonify({
+        "collab_name": collab.name,
+        "date": target_date.isoformat(),
+        "date_br": target_date.strftime("%d/%m/%Y"),
+        "incompleto": result["incompleto"],
+        "diagnostico": diagnostico,
+        "punches": [
+            {
+                "id": p.id,
+                "time": p.punch_time.strftime("%H:%M"),
+                "punch_type": p.punch_type,
+                "type_label": TIPOS_LABEL.get(p.punch_type, p.punch_type or "Legado"),
+                "origin": p.origin or "automatico",
+                "nsr": p.nsr,
+            }
+            for p in punches
+        ],
+    })
+
+
+@app.post("/colaborador/<int:collab_id>/ponto-dia/add")
+@login_required
+def admin_ponto_dia_add(collab_id: int):
+    """Adiciona uma batida manual para correção de jornada incompleta (admin)."""
+    collab = db.session.get(Collaborator, collab_id)
+    if not collab:
+        flash("Colaborador não encontrado.", "danger")
+        return redirect(url_for("index"))
+
+    date_str = (request.form.get("date") or "").strip()
+    time_str = (request.form.get("time") or "").strip()
+    punch_type = (request.form.get("punch_type") or "").strip() or None
+    month_param = (request.form.get("month") or "").strip()
+
+    try:
+        target_date = date.fromisoformat(date_str)
+    except ValueError:
+        flash("Data inválida.", "danger")
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id, month=month_param))
+
+    try:
+        target_time = datetime.strptime(time_str, "%H:%M").time()
+    except ValueError:
+        flash("Hora inválida.", "danger")
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id, month=month_param))
+
+    # NSR único gerado para registros manuais
+    nsr_manual = f"MANUAL-{uuid.uuid4().hex[:16].upper()}"
+
+    record = PunchRecord(
+        collaborator_id=collab_id,
+        raw_cpf=collab.cpf or "00000000000",
+        raw_name=collab.name,
+        punch_date=target_date,
+        punch_time=target_time,
+        nsr=nsr_manual,
+        punch_type=punch_type,
+        origin="admin",
+        gives_folga=False,
+    )
+    db.session.add(record)
+    db.session.commit()
+
+    flash(
+        f"Batida manual adicionada: {collab.name} — {target_date.strftime('%d/%m/%Y')} {time_str}.",
+        "success",
+    )
+    return redirect(url_for("collaborator_history", collaborator_id=collab_id, month=month_param))
+
+
+@app.post("/colaborador/<int:collab_id>/ponto/<int:record_id>/excluir")
+@login_required
+def admin_ponto_excluir(collab_id: int, record_id: int):
+    """Remove uma batida de ponto (admin) e redireciona ao histórico."""
+    record = db.session.get(PunchRecord, record_id)
+    if not record or record.collaborator_id != collab_id:
+        flash("Registro não encontrado.", "danger")
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
+
+    month_param = (request.form.get("month") or "").strip()
+    db.session.delete(record)
+    db.session.commit()
+    flash("Batida removida.", "info")
+    return redirect(url_for("collaborator_history", collaborator_id=collab_id, month=month_param))
 
 
 @app.route("/sw.js")

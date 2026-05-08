@@ -2,6 +2,22 @@
 
 <!-- markdownlint-disable MD024 -->
 
+## [0.10.5] - 2026-05-08
+
+### Registro de Ponto — Tela de Confirmação
+
+- feat: detecção automática do tipo de batida (Entrada, Saída para Intervalo, Retorno, Saída Final) com tolerância de ±30 minutos baseada nos horários definidos pelo colaborador.
+- feat: quando nenhum horário está configurado, exibe hint informando que o tipo pode ser definido manualmente e orientando onde configurar os horários (sem bloquear o registro).
+- feat: aviso de privacidade no campo CPF — informa que o dado não é compartilhado, serve apenas para identificação e será criptografado ao confirmar.
+
+### Jornadas Incompletas
+
+- feat: no histórico do colaborador, cada data incompleta exibe badge "incompleto" e botão "✏ Corrigir" (admin).
+- feat: modal de correção com diagnóstico textual do problema (ex: "Entrada registrada sem saída final"), lista de batidas existentes com remoção individual e formulário para adicionar batida manual.
+- feat: nova rota `GET /api/colaborador/<id>/ponto-dia` — retorna batidas do dia e diagnóstico.
+- feat: nova rota `POST /colaborador/<id>/ponto-dia/add` — insere batida manual (admin), NSR gerado automaticamente.
+- feat: nova rota `POST /colaborador/<id>/ponto/<record_id>/excluir` — remove batida individual (admin).
+
 ## [0.10.4] - 2026-05-07
 
 ### Banco de Folgas

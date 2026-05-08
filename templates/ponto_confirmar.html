@@ -64,6 +64,9 @@
                        value="{{ cpf_clean }}"
                        placeholder="Digite os 11 dígitos" maxlength="11"
                        pattern="\d{11}" title="Informe os 11 dígitos do CPF" required>
+                <p class="pconf-cpf-privacy">
+                    &#128274; Seu CPF <strong>não é compartilhado</strong> com ninguém. Ele serve apenas para identificar o colaborador no sistema e será criptografado assim que este ponto for confirmado.
+                </p>
             </div>
 
             <div class="pconf-field">
@@ -158,6 +161,19 @@
                 <option value="saida_final">&#9654; Saída Final</option>
                 <option value="extra">&#9654; Turno Extra</option>
             </select>
+
+            <!-- Indicador de sugestão automática -->
+            <div id="pc-tipo-hint" style="display:none;margin-top:.4rem;padding:.5rem .75rem;border-radius:6px;font-size:.82rem;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);color:#10b981">
+                <span id="pc-tipo-hint-text"></span>
+            </div>
+
+            <!-- Hint quando não há horário definido -->
+            {% if not sched_turnos %}
+            <p class="pconf-muted-hint">
+                &#8505; Tipo não detectado automaticamente. Você pode informar manualmente acima
+                ou <a href="{{ url_for('collaborator_history', collaborator_id=collab.id) if collab else '#' }}" style="color:var(--teal)">definir seus horários de trabalho</a> para sugestão automática nas próximas batidas. (Opcional — não obrigatório para concluir o registro.)
+            </p>
+            {% endif %}
         </div>
 
         <div class="pconf-folga-opt">
@@ -346,6 +362,97 @@
 
     // Inicializa ao carregar
     checkCpf();
+
+    // ─── Auto-sugestão de tipo de batida ───────────────────────────────────
+    (function () {
+        var horaInput  = document.getElementById('pc-hora');
+        var tipoSelect = document.getElementById('pc-tipo');
+        var hintBox    = document.getElementById('pc-tipo-hint');
+        var hintText   = document.getElementById('pc-tipo-hint-text');
+
+        // Schedule e batidas existentes injetados pelo servidor
+        var schedTurnos     = {{ sched_turnos | tojson }};
+        var existingPunches = {{ existing_punches | tojson }};
+        var TOLERANCE_MIN   = 30; // tolerância de ±30 minutos
+
+        function toMinutes(hhmm) {
+            if (!hhmm) return null;
+            var parts = hhmm.split(':');
+            return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+        }
+
+        function closestType(currentMin) {
+            if (!schedTurnos || !schedTurnos.length) return null;
+            var turno = schedTurnos[0];
+
+            // Conjunto de tipos já registrados no dia
+            var done = {};
+            existingPunches.forEach(function (p) { if (p.type) done[p.type] = true; });
+
+            var candidates = [
+                { type: 'entrada',           time: turno.entrada },
+                { type: 'intervalo_saida',   time: turno.saida_intervalo },
+                { type: 'intervalo_retorno', time: turno.volta_intervalo },
+                { type: 'saida_final',       time: turno.saida_final },
+            ];
+
+            var best = null;
+            var bestDiff = Infinity;
+            candidates.forEach(function (c) {
+                if (!c.time || done[c.type]) return;
+                var diff = Math.abs(toMinutes(c.time) - currentMin);
+                if (diff <= TOLERANCE_MIN && diff < bestDiff) {
+                    bestDiff = diff;
+                    best = c;
+                }
+            });
+
+            return best;
+        }
+
+        var LABELS = {
+            'entrada':           'Entrada',
+            'intervalo_saida':   'Saída para Intervalo',
+            'intervalo_retorno': 'Retorno do Intervalo',
+            'saida_final':       'Saída Final',
+        };
+
+        function updateSuggestion() {
+            if (!schedTurnos || !schedTurnos.length) return;
+            var hora = horaInput.value.trim();
+            if (!hora || !/^\d{1,2}:\d{2}$/.test(hora)) {
+                hintBox.style.display = 'none';
+                return;
+            }
+            var currentMin = toMinutes(hora);
+            var match = closestType(currentMin);
+            if (match) {
+                // Só define automaticamente se o usuário ainda não escolheu
+                if (!tipoSelect.dataset.userChanged) {
+                    tipoSelect.value = match.type;
+                }
+                var turno = schedTurnos[0];
+                var expected = match.time;
+                var diff = toMinutes(hora) - toMinutes(expected);
+                var diffAbs = Math.abs(diff);
+                var diffLabel = diffAbs === 0 ? 'exatamente no horário'
+                    : (diffAbs + 'min ' + (diff > 0 ? 'após' : 'antes') + ' do esperado (' + expected + ')');
+                hintText.textContent = '✓ Sugestão automática: ' + LABELS[match.type] + ' — ' + diffLabel + '.';
+                hintBox.style.display = '';
+            } else {
+                hintBox.style.display = 'none';
+            }
+        }
+
+        horaInput.addEventListener('input', updateSuggestion);
+        tipoSelect.addEventListener('change', function () {
+            tipoSelect.dataset.userChanged = '1';
+            hintBox.style.display = 'none';
+        });
+
+        // Roda na carga inicial
+        updateSuggestion();
+    })();
     </script>
 
     {% if data.raw_text %}
@@ -442,6 +549,22 @@
     font-size: .82rem;
     color: var(--danger);
     font-weight: 600;
+}
+.pconf-cpf-privacy {
+    margin: .35rem 0 0;
+    font-size: .78rem;
+    color: var(--muted);
+    line-height: 1.45;
+    padding: .4rem .6rem;
+    background: rgba(148,163,184,.07);
+    border-left: 2px solid var(--muted);
+    border-radius: 4px;
+}
+.pconf-muted-hint {
+    margin: .4rem 0 0;
+    font-size: .8rem;
+    color: var(--muted);
+    line-height: 1.5;
 }
 .pconf-collab-box {
     display: flex;

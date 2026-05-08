@@ -225,9 +225,20 @@
                 <details class="hist-action-details">
                     <summary>&#9888; Jornadas Incompletas ({{ ind_mes.dias_incompletos|length }})</summary>
                     <div class="hist-action-section">
-                        <ul style="margin:0;padding-left:1.2rem;font-size:.88rem">
+                        <ul style="margin:0;padding:0;list-style:none;font-size:.88rem">
                             {% for d in ind_mes.dias_incompletos %}
-                            <li>{{ d }}</li>
+                            <li style="display:flex;align-items:center;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid var(--line)">
+                                <span>{{ d }}</span>
+                                {% if current_user.is_authenticated %}
+                                <button type="button" class="btn btn-ghost btn-corrigir-jornada"
+                                        style="font-size:.78rem;padding:.2rem .55rem;color:#f59e0b;border-color:#f59e0b"
+                                        data-collab-id="{{ collab.id }}"
+                                        data-date="{{ d }}"
+                                        data-month="{{ '%s-%02d'|format(ponto_year, ponto_month) }}">
+                                    &#9998; Corrigir
+                                </button>
+                                {% endif %}
+                            </li>
                             {% endfor %}
                         </ul>
                         <p style="margin:.5rem 0 0;font-size:.82rem;color:var(--muted)">Suspensos até correção administrativa.</p>
@@ -806,7 +817,175 @@
             btn.setAttribute('aria-expanded', 'false');
         }
     });
+    btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = menu.classList.toggle('open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) positionMenu();
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!menu.contains(e.target) && e.target !== btn) {
+            menu.classList.remove('open');
+            btn.setAttribute('aria-expanded', 'false');
+        }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            menu.classList.remove('open');
+            btn.setAttribute('aria-expanded', 'false');
+        }
+    });
 })();
 </script>
+
+<!-- Modal: Corrigir Jornada Incompleta -->
+{% if current_user.is_authenticated %}
+<dialog id="modal-corrigir-jornada" style="border:none;border-radius:12px;padding:0;max-width:480px;width:95%;box-shadow:0 8px 32px rgba(0,0,0,.35);background:var(--surface,#1e293b);color:var(--text,#f1f5f9)">
+    <div style="padding:1.25rem 1.25rem .5rem;border-bottom:1px solid var(--line,#334155);display:flex;align-items:center;justify-content:space-between">
+        <div>
+            <strong id="mcj-title" style="font-size:1rem">Corrigir Jornada</strong>
+            <p id="mcj-subtitle" style="margin:.15rem 0 0;font-size:.82rem;color:var(--muted,#94a3b8)"></p>
+        </div>
+        <button type="button" id="mcj-close" style="background:none;border:none;color:var(--muted,#94a3b8);font-size:1.4rem;cursor:pointer;line-height:1">&#10005;</button>
+    </div>
+
+    <div style="padding:1rem 1.25rem">
+        <!-- Diagnóstico -->
+        <div id="mcj-diagnostico" style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:.65rem .85rem;margin-bottom:1rem;font-size:.84rem;color:#f59e0b;display:none"></div>
+
+        <!-- Lista de batidas existentes -->
+        <p style="font-size:.8rem;font-weight:600;color:var(--muted,#94a3b8);margin:0 0 .4rem;text-transform:uppercase;letter-spacing:.04em">Batidas do dia</p>
+        <div id="mcj-punches" style="margin-bottom:1rem"></div>
+
+        <!-- Formulário: adicionar batida -->
+        <details open style="margin-top:.75rem">
+            <summary style="font-size:.84rem;font-weight:600;cursor:pointer;color:var(--text,#f1f5f9);padding:.3rem 0">&#43; Adicionar batida manual</summary>
+            <form id="mcj-add-form" method="post" style="margin-top:.6rem;display:flex;flex-direction:column;gap:.5rem">
+                <input type="hidden" name="date" id="mcj-add-date">
+                <input type="hidden" name="month" id="mcj-add-month">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+                    <div>
+                        <label style="font-size:.78rem;display:block;margin-bottom:.2rem">Horário</label>
+                        <input type="time" name="time" required style="width:100%;padding:.4rem .6rem;border-radius:6px;border:1px solid var(--line,#334155);background:var(--bg,#0f172a);color:var(--text,#f1f5f9)">
+                    </div>
+                    <div>
+                        <label style="font-size:.78rem;display:block;margin-bottom:.2rem">Tipo</label>
+                        <select name="punch_type" style="width:100%;padding:.4rem .6rem;border-radius:6px;border:1px solid var(--line,#334155);background:var(--bg,#0f172a);color:var(--text,#f1f5f9)">
+                            <option value="">Legado (par)</option>
+                            <option value="entrada">Entrada</option>
+                            <option value="intervalo_saida">Saída p/ Intervalo</option>
+                            <option value="intervalo_retorno">Retorno do Intervalo</option>
+                            <option value="saida_final">Saída Final</option>
+                            <option value="extra">Extra</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn" style="align-self:flex-start">&#43; Adicionar batida</button>
+            </form>
+        </details>
+    </div>
+</dialog>
+
+<script>
+(function () {
+    var modal = document.getElementById('modal-corrigir-jornada');
+    var closeBtn = document.getElementById('mcj-close');
+    var title = document.getElementById('mcj-title');
+    var subtitle = document.getElementById('mcj-subtitle');
+    var diagBox = document.getElementById('mcj-diagnostico');
+    var punchesBox = document.getElementById('mcj-punches');
+    var addForm = document.getElementById('mcj-add-form');
+    var addDateInput = document.getElementById('mcj-add-date');
+    var addMonthInput = document.getElementById('mcj-add-month');
+
+    var currentCollabId = null;
+    var currentDate = null;
+    var currentMonth = null;
+
+    function openModal(collabId, dateIso, month) {
+        currentCollabId = collabId;
+        currentDate = dateIso;
+        currentMonth = month;
+
+        var parts = dateIso.split('-');
+        var dateBr = parts[2] + '/' + parts[1] + '/' + parts[0];
+        title.textContent = 'Corrigir Jornada — ' + dateBr;
+        subtitle.textContent = 'Carregando…';
+        diagBox.style.display = 'none';
+        punchesBox.innerHTML = '<p style="color:var(--muted);font-size:.84rem">Carregando…</p>';
+        addDateInput.value = dateIso;
+        addMonthInput.value = month;
+        addForm.action = '/colaborador/' + collabId + '/ponto-dia/add';
+
+        modal.showModal();
+
+        fetch('/api/colaborador/' + collabId + '/ponto-dia?date=' + dateIso)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                subtitle.textContent = data.collab_name + ' — ' + data.date_br;
+
+                if (data.diagnostico && data.diagnostico.length) {
+                    diagBox.innerHTML = '&#9888; ' + data.diagnostico.join('<br>&#9888; ');
+                    diagBox.style.display = 'block';
+                }
+
+                if (!data.punches || !data.punches.length) {
+                    punchesBox.innerHTML = '<p style="color:var(--muted);font-size:.84rem;font-style:italic">Nenhuma batida encontrada neste dia.</p>';
+                    return;
+                }
+
+                var html = '<table style="width:100%;border-collapse:collapse;font-size:.84rem">';
+                html += '<thead><tr style="color:var(--muted);font-size:.78rem">';
+                html += '<th style="text-align:left;padding:.25rem .4rem;border-bottom:1px solid var(--line)">Hora</th>';
+                html += '<th style="text-align:left;padding:.25rem .4rem;border-bottom:1px solid var(--line)">Tipo</th>';
+                html += '<th style="text-align:left;padding:.25rem .4rem;border-bottom:1px solid var(--line)">Origem</th>';
+                html += '<th style="padding:.25rem .4rem;border-bottom:1px solid var(--line)"></th>';
+                html += '</tr></thead><tbody>';
+
+                data.punches.forEach(function (p) {
+                    var originBadge = p.origin === 'admin' ? '<span style="color:#f59e0b;font-size:.75rem">admin</span>'
+                        : p.origin === 'manual' ? '<span style="color:#818cf8;font-size:.75rem">manual</span>'
+                        : '<span style="color:#94a3b8;font-size:.75rem">auto</span>';
+                    html += '<tr>';
+                    html += '<td style="padding:.3rem .4rem;font-weight:600">' + p.time + '</td>';
+                    html += '<td style="padding:.3rem .4rem">' + p.type_label + '</td>';
+                    html += '<td style="padding:.3rem .4rem">' + originBadge + '</td>';
+                    html += '<td style="padding:.3rem .4rem;text-align:right">';
+                    html += '<form method="post" action="/colaborador/' + collabId + '/ponto/' + p.id + '/excluir" style="display:inline"'
+                        + ' onsubmit="return confirm(\'Remover batida ' + p.time + ' (' + p.type_label + ')? Esta ação não pode ser desfeita.\')">';
+                    html += '<input type="hidden" name="month" value="' + month + '">';
+                    html += '<button type="submit" style="background:#dc2626;border:none;border-radius:5px;color:#fff;padding:.2rem .5rem;cursor:pointer;font-size:.78rem">&#10005;</button>';
+                    html += '</form>';
+                    html += '</td></tr>';
+                });
+
+                html += '</tbody></table>';
+                punchesBox.innerHTML = html;
+            })
+            .catch(function () {
+                subtitle.textContent = 'Erro ao carregar dados.';
+                punchesBox.innerHTML = '<p style="color:#f87171;font-size:.84rem">Falha ao buscar batidas. Tente novamente.</p>';
+            });
+    }
+
+    // Botões "Corrigir" na lista de jornadas incompletas
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.btn-corrigir-jornada');
+        if (!btn) return;
+        openModal(btn.dataset.collabId, btn.dataset.date, btn.dataset.month);
+    });
+
+    closeBtn.addEventListener('click', function () { modal.close(); });
+    modal.addEventListener('click', function (e) {
+        if (e.target === modal) modal.close();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal.open) modal.close();
+    });
+})();
+</script>
+{% endif %}
 
 {% endblock %}
