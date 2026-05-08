@@ -2,7 +2,15 @@
 
 <!-- markdownlint-disable MD024 -->
 
-## [0.10.6] - 2026-05-09
+## [0.10.7] - 2026-05-08
+
+### Status do Sistema
+
+- fix: rota `/admin/sistema/backup` aceita GET+POST, evitando erro 405 após redirecionamento do Flask-Login.
+- feat: botão **⟳ Atualizar** no header da página de sistema — atualiza CPU, RAM e disco via AJAX sem recarregar a página.
+- feat: nova rota `GET /api/sistema/status` retorna métricas em JSON para consumo pelo botão de atualização.
+
+## [0.10.6] - 2026-05-08
 
 ### Status do Sistema e Backups
 
