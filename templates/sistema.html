@@ -4,8 +4,13 @@
 <section class="page-wrap">
 
   <header class="page-header">
-    <h2>&#128187; Status do Sistema</h2>
-    <p class="sub">CPU, memória, disco e backups do banco de dados.</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;">
+      <div>
+        <h2 style="margin:0;">&#128187; Status do Sistema</h2>
+        <p class="sub" style="margin:.25rem 0 0;">CPU, memória, disco e backups do banco de dados.</p>
+      </div>
+      <button class="btn btn-ghost" id="btn-atualizar" onclick="atualizarSistema()">&#8635; Atualizar</button>
+    </div>
   </header>
 
   {% if not psutil_ok %}
@@ -17,7 +22,7 @@
   <!-- Métricas -->
   <div class="sistema-grid">
 
-    <article class="card sistema-card">
+    <article class="card sistema-card" id="card-cpu">
       <div class="sistema-label">CPU</div>
       {% if psutil_ok %}
       <div class="sistema-value">{{ cpu_pct | round(1) }}%</div>
@@ -30,7 +35,7 @@
       {% endif %}
     </article>
 
-    <article class="card sistema-card">
+    <article class="card sistema-card" id="card-ram">
       <div class="sistema-label">Memória RAM</div>
       {% if psutil_ok %}
       <div class="sistema-value">{{ ram_pct | round(1) }}%</div>
@@ -44,7 +49,7 @@
       {% endif %}
     </article>
 
-    <article class="card sistema-card">
+    <article class="card sistema-card" id="card-disk">
       <div class="sistema-label">Disco</div>
       {% if psutil_ok %}
       <div class="sistema-value">{{ disk_pct | round(1) }}%</div>
@@ -60,7 +65,7 @@
 
     <article class="card sistema-card">
       <div class="sistema-label">Banco de Dados</div>
-      <div class="sistema-value">{{ db_size }}</div>
+      <div class="sistema-value" id="db-size">{{ db_size }}</div>
       <div class="sistema-sub">fluxos_zero.db</div>
     </article>
 
@@ -150,4 +155,40 @@
 .sistema-bar-warn  { background: #f59e0b; }
 .sistema-bar-danger { background: #ef4444; }
 </style>
+
+<script>
+function atualizarSistema() {
+  const btn = document.getElementById('btn-atualizar');
+  btn.disabled = true;
+  btn.textContent = '⟳ Atualizando…';
+
+  fetch('{{ url_for("api_sistema_status") }}')
+    .then(r => r.json())
+    .then(d => {
+      setMetric('cpu',  d.cpu_pct,  null,          null,           '{{ url_for("api_sistema_status") }}');
+      setMetric('ram',  d.ram_pct,  d.ram_used,    d.ram_total,    null);
+      setMetric('disk', d.disk_pct, d.disk_used,   d.disk_total,   null);
+      document.getElementById('db-size').textContent = d.db_size;
+    })
+    .catch(() => {})
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerHTML = '&#8635; Atualizar';
+    });
+}
+
+function setMetric(id, pct, used, total, _unused) {
+  const card = document.getElementById('card-' + id);
+  if (!card) return;
+  card.querySelector('.sistema-value').textContent = pct.toFixed(1) + '%';
+  const sub = card.querySelector('.sistema-sub');
+  if (sub && used != null) sub.textContent = used + ' / ' + total;
+  const bar = card.querySelector('.sistema-bar');
+  if (bar) {
+    bar.style.width = Math.min(pct, 100) + '%';
+    bar.className = 'sistema-bar' +
+      (pct > 85 ? ' sistema-bar-danger' : pct > 60 ? ' sistema-bar-warn' : '');
+  }
+}
+</script>
 {% endblock %}

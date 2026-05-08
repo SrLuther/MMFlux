@@ -3177,6 +3177,37 @@ def admin_sistema_backup():
     return redirect(url_for("admin_sistema"))
 
 
+@app.get("/api/sistema/status")
+@login_required
+def api_sistema_status():
+    """Retorna métricas atuais de CPU/RAM/disco em JSON."""
+    def fmt_bytes(n: int) -> str:
+        for unit in ("B", "KB", "MB", "GB"):
+            if n < 1024:
+                return f"{n:.1f} {unit}"
+            n /= 1024  # type: ignore[assignment]
+        return f"{n:.1f} TB"
+
+    try:
+        import psutil  # type: ignore[import-untyped]
+        cpu_pct   = psutil.cpu_percent(interval=0.5)
+        mem       = psutil.virtual_memory()
+        disk      = psutil.disk_usage("/")
+        data = {
+            "cpu_pct":    cpu_pct,
+            "ram_pct":    mem.percent,
+            "ram_used":   fmt_bytes(mem.used),
+            "ram_total":  fmt_bytes(mem.total),
+            "disk_pct":   disk.percent,
+            "disk_used":  fmt_bytes(disk.used),
+            "disk_total": fmt_bytes(disk.total),
+            "db_size":    fmt_bytes(os.path.getsize(DB_PATH)) if os.path.isfile(DB_PATH) else "—",
+        }
+    except ImportError:
+        data = {"error": "psutil não instalado"}
+    return jsonify(data)
+
+
 if __name__ == "__main__":
     host = os.getenv("FLUXOS_HOST", "0.0.0.0")
     port_raw = os.getenv("FLUXOS_PORT", "5051")
