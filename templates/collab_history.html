@@ -822,7 +822,7 @@
 
 <!-- Modal: Corrigir Jornada Incompleta -->
 {% if current_user.is_authenticated %}
-<dialog id="modal-corrigir-jornada" style="border:none;border-radius:12px;padding:0;max-width:480px;width:95%;box-shadow:0 8px 32px rgba(0,0,0,.35);background:var(--surface,#1e293b);color:var(--text,#f1f5f9)">
+<dialog id="modal-corrigir-jornada" style="border:none;border-radius:12px;padding:0;max-width:480px;width:95%;box-shadow:0 8px 32px rgba(0,0,0,.35);background:var(--surface,#1e293b);color:var(--text,#f1f5f9);overflow:hidden;display:flex;flex-direction:column">
     <div style="padding:1.25rem 1.25rem .5rem;border-bottom:1px solid var(--line,#334155);display:flex;align-items:center;justify-content:space-between">
         <div>
             <strong id="mcj-title" style="font-size:1rem">Corrigir Jornada</strong>
@@ -831,7 +831,7 @@
         <button type="button" id="mcj-close" style="background:none;border:none;color:var(--muted,#94a3b8);font-size:1.4rem;cursor:pointer;line-height:1">&#10005;</button>
     </div>
 
-    <div style="padding:1rem 1.25rem">
+    <div style="padding:1rem 1.25rem;overflow-y:auto;max-height:70vh">
         <!-- Diagnóstico -->
         <div id="mcj-diagnostico" style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:.65rem .85rem;margin-bottom:1rem;font-size:.84rem;color:#f59e0b;display:none"></div>
 
@@ -840,9 +840,9 @@
         <div id="mcj-punches" style="margin-bottom:1rem"></div>
 
         <!-- Formulário: adicionar batida -->
-        <details open style="margin-top:.75rem">
+        <details style="margin-top:.75rem">
             <summary style="font-size:.84rem;font-weight:600;cursor:pointer;color:var(--text,#f1f5f9);padding:.3rem 0">&#43; Adicionar batida manual</summary>
-            <form id="mcj-add-form" method="post" style="margin-top:.6rem;display:flex;flex-direction:column;gap:.5rem">
+            <form id="mcj-add-form" method="post" style="margin-top:.6rem;display:flex;flex-direction:column;gap:.5rem" autocomplete="off">
                 <input type="hidden" name="date" id="mcj-add-date">
                 <input type="hidden" name="month" id="mcj-add-month">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
@@ -853,6 +853,7 @@
                     <div>
                         <label style="font-size:.78rem;display:block;margin-bottom:.2rem">Tipo</label>
                         <select name="punch_type" style="width:100%;padding:.4rem .6rem;border-radius:6px;border:1px solid var(--line,#334155);background:var(--bg,#0f172a);color:var(--text,#f1f5f9)">
+                            <option value="" disabled selected>— selecione —</option>
                             <option value="">Legado (par)</option>
                             <option value="entrada">Entrada</option>
                             <option value="intervalo_saida">Saída p/ Intervalo</option>
@@ -912,37 +913,29 @@
                 }
 
                 if (!data.punches || !data.punches.length) {
-                    punchesBox.innerHTML = '<p style="color:var(--muted);font-size:.84rem;font-style:italic">Nenhuma batida encontrada neste dia.</p>';
+                    punchesBox.innerHTML = '<p style="color:#94a3b8;font-size:.84rem;font-style:italic">Nenhuma batida encontrada neste dia.</p>';
                     return;
                 }
 
-                var html = '<table style="width:100%;border-collapse:collapse;font-size:.84rem">';
-                html += '<thead><tr style="color:var(--muted);font-size:.78rem">';
-                html += '<th style="text-align:left;padding:.25rem .4rem;border-bottom:1px solid var(--line)">Hora</th>';
-                html += '<th style="text-align:left;padding:.25rem .4rem;border-bottom:1px solid var(--line)">Tipo</th>';
-                html += '<th style="text-align:left;padding:.25rem .4rem;border-bottom:1px solid var(--line)">Origem</th>';
-                html += '<th style="padding:.25rem .4rem;border-bottom:1px solid var(--line)"></th>';
-                html += '</tr></thead><tbody>';
-
+                var rows = '';
                 data.punches.forEach(function (p) {
-                    var originBadge = p.origin === 'admin' ? '<span style="color:#f59e0b;font-size:.75rem">admin</span>'
-                        : p.origin === 'manual' ? '<span style="color:#818cf8;font-size:.75rem">manual</span>'
-                        : '<span style="color:#94a3b8;font-size:.75rem">auto</span>';
-                    html += '<tr>';
-                    html += '<td style="padding:.3rem .4rem;font-weight:600">' + p.time + '</td>';
-                    html += '<td style="padding:.3rem .4rem">' + p.type_label + '</td>';
-                    html += '<td style="padding:.3rem .4rem">' + originBadge + '</td>';
-                    html += '<td style="padding:.3rem .4rem;text-align:right">';
-                    html += '<form method="post" action="/colaborador/' + collabId + '/ponto/' + p.id + '/excluir" style="display:inline"'
-                        + ' onsubmit="return confirm(\'Remover batida ' + p.time + ' (' + p.type_label + ')? Esta ação não pode ser desfeita.\')">';
-                    html += '<input type="hidden" name="month" value="' + month + '">';
-                    html += '<button type="submit" style="background:#dc2626;border:none;border-radius:5px;color:#fff;padding:.2rem .5rem;cursor:pointer;font-size:.78rem">&#10005;</button>';
-                    html += '</form>';
-                    html += '</td></tr>';
+                    var originColor = p.origin === 'admin' ? '#f59e0b' : p.origin === 'manual' ? '#818cf8' : '#94a3b8';
+                    var originLabel = p.origin === 'admin' ? 'admin' : p.origin === 'manual' ? 'manual' : 'auto';
+                    rows += '<div style="display:flex;align-items:center;gap:.5rem;padding:.35rem .5rem;border-bottom:1px solid #334155">';
+                    rows += '<span style="font-weight:600;color:#f1f5f9;min-width:3.2rem;font-size:.88rem">' + p.time + '</span>';
+                    rows += '<span style="flex:1;color:#f1f5f9;font-size:.84rem">' + p.type_label + '</span>';
+                    rows += '<span style="font-size:.75rem;color:' + originColor + ';min-width:3rem;text-align:center">' + originLabel + '</span>';
+                    rows += '<button type="button"'
+                        + ' style="background:#dc2626;border:none;border-radius:5px;color:#fff;padding:.2rem .5rem;cursor:pointer;font-size:.78rem;flex-shrink:0"'
+                        + ' data-action="delete-punch"'
+                        + ' data-id="' + p.id + '"'
+                        + ' data-time="' + p.time + '"'
+                        + ' data-label="' + p.type_label + '"'
+                        + ' data-month="' + month + '"'
+                        + ' data-collab="' + collabId + '">&#10005;</button>';
+                    rows += '</div>';
                 });
-
-                html += '</tbody></table>';
-                punchesBox.innerHTML = html;
+                punchesBox.innerHTML = '<div style="border:1px solid #334155;border-radius:7px;overflow:hidden">' + rows + '</div>';
             })
             .catch(function () {
                 subtitle.textContent = 'Erro ao carregar dados.';
@@ -963,6 +956,23 @@
     });
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && modal.open) modal.close();
+    });
+
+    // Deletar batida via botão dinâmico (evita form-inside-table parsing issue)
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-action="delete-punch"]');
+        if (!btn) return;
+        var time = btn.dataset.time;
+        var label = btn.dataset.label;
+        if (!confirm('Remover batida ' + time + ' (' + label + ')? Esta ação não pode ser desfeita.')) return;
+        var form = document.createElement('form');
+        form.method = 'post';
+        form.action = '/colaborador/' + btn.dataset.collab + '/ponto/' + btn.dataset.id + '/excluir';
+        var inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = 'month'; inp.value = btn.dataset.month;
+        form.appendChild(inp);
+        document.body.appendChild(form);
+        form.submit();
     });
 })();
 </script>
