@@ -817,26 +817,6 @@
             btn.setAttribute('aria-expanded', 'false');
         }
     });
-    btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var open = menu.classList.toggle('open');
-        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-        if (open) positionMenu();
-    });
-
-    document.addEventListener('click', function (e) {
-        if (!menu.contains(e.target) && e.target !== btn) {
-            menu.classList.remove('open');
-            btn.setAttribute('aria-expanded', 'false');
-        }
-    });
-
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') {
-            menu.classList.remove('open');
-            btn.setAttribute('aria-expanded', 'false');
-        }
-    });
 })();
 </script>
 
