@@ -822,13 +822,13 @@
 
 <!-- Modal: Corrigir Jornada Incompleta -->
 {% if current_user.is_authenticated %}
-<dialog id="modal-corrigir-jornada" style="border:none;border-radius:12px;padding:0;max-width:480px;width:95%;box-shadow:0 8px 32px rgba(0,0,0,.35);background:var(--surface,#1e293b);color:var(--text,#f1f5f9);overflow:hidden;display:flex;flex-direction:column">
-    <div style="padding:1.25rem 1.25rem .5rem;border-bottom:1px solid var(--line,#334155);display:flex;align-items:center;justify-content:space-between">
+<dialog id="modal-corrigir-jornada" style="border:none;border-radius:12px;padding:0;max-width:480px;width:95%;box-shadow:var(--shadow-lg);">
+    <div style="padding:1.25rem 1.25rem .5rem;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
         <div>
-            <strong id="mcj-title" style="font-size:1rem">Corrigir Jornada</strong>
-            <p id="mcj-subtitle" style="margin:.15rem 0 0;font-size:.82rem;color:var(--muted,#94a3b8)"></p>
+            <strong id="mcj-title" style="font-size:1rem;color:var(--text)">Corrigir Jornada</strong>
+            <p id="mcj-subtitle" style="margin:.15rem 0 0;font-size:.82rem;color:var(--muted)"></p>
         </div>
-        <button type="button" id="mcj-close" style="background:none;border:none;color:var(--muted,#94a3b8);font-size:1.4rem;cursor:pointer;line-height:1">&#10005;</button>
+        <button type="button" id="mcj-close" style="background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer;line-height:1">&#10005;</button>
     </div>
 
     <div style="padding:1rem 1.25rem;overflow-y:auto;max-height:70vh">
@@ -836,23 +836,23 @@
         <div id="mcj-diagnostico" style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:.65rem .85rem;margin-bottom:1rem;font-size:.84rem;color:#f59e0b;display:none"></div>
 
         <!-- Lista de batidas existentes -->
-        <p style="font-size:.8rem;font-weight:600;color:var(--muted,#94a3b8);margin:0 0 .4rem;text-transform:uppercase;letter-spacing:.04em">Batidas do dia</p>
+        <p style="font-size:.8rem;font-weight:600;color:var(--muted);margin:0 0 .4rem;text-transform:uppercase;letter-spacing:.04em">Batidas do dia</p>
         <div id="mcj-punches" style="margin-bottom:1rem"></div>
 
         <!-- Formulário: adicionar batida -->
         <details style="margin-top:.75rem">
-            <summary style="font-size:.84rem;font-weight:600;cursor:pointer;color:var(--text,#f1f5f9);padding:.3rem 0">&#43; Adicionar batida manual</summary>
+            <summary style="font-size:.84rem;font-weight:600;cursor:pointer;color:var(--navy);padding:.3rem 0">&#43; Adicionar batida manual</summary>
             <form id="mcj-add-form" method="post" style="margin-top:.6rem;display:flex;flex-direction:column;gap:.5rem" autocomplete="off">
                 <input type="hidden" name="date" id="mcj-add-date">
                 <input type="hidden" name="month" id="mcj-add-month">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
                     <div>
-                        <label style="font-size:.78rem;display:block;margin-bottom:.2rem">Horário</label>
-                        <input type="time" name="time" required style="width:100%;padding:.4rem .6rem;border-radius:6px;border:1px solid var(--line,#334155);background:var(--bg,#0f172a);color:var(--text,#f1f5f9)">
+                        <label style="font-size:.78rem;display:block;margin-bottom:.2rem;color:var(--text-soft)">Horário</label>
+                        <input type="time" name="time" required style="width:100%;padding:.4rem .6rem;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--text)">
                     </div>
                     <div>
-                        <label style="font-size:.78rem;display:block;margin-bottom:.2rem">Tipo</label>
-                        <select name="punch_type" style="width:100%;padding:.4rem .6rem;border-radius:6px;border:1px solid var(--line,#334155);background:var(--bg,#0f172a);color:var(--text,#f1f5f9)">
+                        <label style="font-size:.78rem;display:block;margin-bottom:.2rem;color:var(--text-soft)">Tipo</label>
+                        <select name="punch_type" style="width:100%;padding:.4rem .6rem;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--text)">
                             <option value="" disabled selected>— selecione —</option>
                             <option value="">Legado (par)</option>
                             <option value="entrada">Entrada</option>

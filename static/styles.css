@@ -1,4 +1,4 @@
-﻿/* =========================================================
+/* =========================================================
    TOKENS
    ========================================================= */
 :root {
@@ -146,7 +146,7 @@ body {
     z-index: 0;
 }
 
-/* conteúdo acima das decorações */
+/* conte�do acima das decora��es */
 .hero > * {
     position: relative;
     z-index: 1;
@@ -234,7 +234,7 @@ body {
 }
 .metric-value strong { color: #4ade80; }
 
-/* ─── SALDO-BLOCO: layout de equação (acumulado − descontado = saldo) ──── */
+/* --- SALDO-BLOCO: layout de equa��o (acumulado - descontado = saldo) ---- */
 .saldo-bloco {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -344,9 +344,9 @@ body {
 .daily-rate-form input[type="tel"]::placeholder { color: var(--muted); }
 
 /* =========================================================
-   PAINÃ‰IS
+   PAINÉIS
    ========================================================= */
-/* ── Painel Admin ── */
+/* -- Painel Admin -- */
 .admin-panel {
     padding: 1rem 1.25rem 1.25rem;
     background: var(--surface);
@@ -377,7 +377,7 @@ body {
     font-weight: 600;
 }
 
-/* Dropdown de ações do painel admin */
+/* Dropdown de a��es do painel admin */
 .admin-menu-wrap {
     position: relative;
     display: inline-block;
@@ -629,7 +629,7 @@ body {
 }
 .btn-grant-folga:hover { filter: brightness(1.15); }
 
-/* Painéis inline do histórico (Editar, Folga) — empurram o conteúdo, não flutuam */
+/* Pain�is inline do hist�rico (Editar, Folga) � empurram o conte�do, n�o flutuam */
 .hist-inline-panel {
     margin-top: .75rem;
     padding: .85rem 1rem;
@@ -736,7 +736,7 @@ body {
     flex-shrink: 0;
 }
 
-/* Dropdown ⋯ por card de colaborador */
+/* Dropdown ? por card de colaborador */
 .card-menu-wrap {
     position: relative;
     display: inline-block;
@@ -786,7 +786,7 @@ body {
 
 .card-menu form { margin: 0; }
 
-/* Painel de edição expansível abaixo do card */
+/* Painel de edi��o expans�vel abaixo do card */
 .card-edit-panel {
     margin-top: .75rem;
     padding-top: .75rem;
@@ -809,7 +809,7 @@ body {
 .status.off { background: var(--danger-bg); color: var(--danger); }
 
 /* =========================================================
-   FORMULÃRIOS
+   FORMULÁRIOS
    ========================================================= */
 .entry-form,
 .inline-form,
@@ -848,7 +848,7 @@ select:focus {
 }
 
 /* =========================================================
-   LANÃ‡AMENTOS
+   LANÇAMENTOS
    ========================================================= */
 .table-wrap { overflow-x: auto; }
 table { display: none; }
@@ -908,7 +908,7 @@ details summary {
 details summary::-webkit-details-marker { display: none; }
 
 /* =========================================================
-   BOTÃ•ES
+   BOTÕES
    ========================================================= */
 .btn {
     border: 0;
@@ -939,7 +939,7 @@ details summary::-webkit-details-marker { display: none; }
     border: 1px solid rgba(255,255,255,.28);
 }
 
-/* ghost em painÃ©is (fundo claro) */
+/* ghost em painéis (fundo claro) */
 .panel .btn-ghost,
 .admin-panel .btn-ghost,
 .login-card .btn-ghost {
@@ -1099,7 +1099,7 @@ details summary::-webkit-details-marker { display: none; }
 }
 
 /* =========================================================
-   HISTÓRICO DO COLABORADOR
+   HIST�RICO DO COLABORADOR
    ========================================================= */
 .hist-hero {
     background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 65%, var(--blue-mid) 100%);
@@ -1109,7 +1109,7 @@ details summary::-webkit-details-marker { display: none; }
     overflow: hidden;
 }
 
-/* marca d'água — logo cortada no canto direito */
+/* marca d'�gua � logo cortada no canto direito */
 .hist-hero::after {
     content: '';
     position: absolute;
@@ -1125,7 +1125,7 @@ details summary::-webkit-details-marker { display: none; }
     z-index: 0;
 }
 
-/* garante que o conteúdo fique acima da marca d'água */
+/* garante que o conte�do fique acima da marca d'�gua */
 .hist-hero > * {
     position: relative;
     z-index: 1;
@@ -1155,7 +1155,7 @@ details summary::-webkit-details-marker { display: none; }
 
 .hist-hero-back { margin-bottom: 0.6rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 
-/* Dropdown de ações no histórico */
+/* Dropdown de a��es no hist�rico */
 .hist-actions-wrap {
     position: relative;
     display: inline-block;
@@ -1241,7 +1241,7 @@ details summary::-webkit-details-marker { display: none; }
 }
 .hist-action-details > summary::-webkit-details-marker { display: none; }
 .hist-action-details > summary::after {
-    content: '›';
+    content: '�';
     margin-left: auto;
     font-size: 1.15rem;
     color: var(--muted);
@@ -1346,7 +1346,7 @@ details summary::-webkit-details-marker { display: none; }
 .mstat.neg { background: #fee2e2; color: #991b1b; }
 .mstat.net { background: #dbeafe; color: var(--navy); }
 
-/* tabela dentro do histórico (o reset global esconde <table>) */
+/* tabela dentro do hist�rico (o reset global esconde <table>) */
 .hist-month table,
 .hist-content table,
 .ponto-section table,
@@ -1381,26 +1381,19 @@ details summary::-webkit-details-marker { display: none; }
 .ponto-section tbody tr:hover,
 .card tbody tr:hover { background: var(--surface-hover, rgba(0,0,0,.03)); }
 
-/* ── Dialog / Modal ────────────────────────────────────────── */
+/* -- Dialog / Modal ------------------------------------------ */
 dialog {
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 0;
-  background: var(--surface, #1e293b);
-  color: var(--text, #f1f5f9);
-  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
   max-width: 480px;
   width: 95%;
 }
 dialog::backdrop {
-  background: rgba(0, 0, 0, .65);
+  background: rgba(15, 28, 48, .6);
   backdrop-filter: blur(2px);
-}
-dialog[open] {
-  display: flex;
-  flex-direction: column;
-}
-#modal-corrigir-jornada > div:last-of-type {
-  overflow-y: auto;
-  max-height: 72vh;
+  -webkit-backdrop-filter: blur(2px);
 }
