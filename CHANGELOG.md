@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.3] - 2026-05-07
+
+### Painel do colaborador
+
+- fix: `meta_semana_min` agora é reduzida pelas folgas registradas na semana (folgas abatiam apenas os faltantes, mas não a meta exibida).
+- fix: `faltantes_semana_min` = `meta_semana_min` (ajustada) − horas trabalhadas.
+- Regra aplicada: Meta = 44h − (feriados × 7:20) − (folgas × 7:20); Faltantes = Meta − Trabalhado.
+
 ## [0.10.2] - 2026-05-07
 
 ### WhatsApp Service

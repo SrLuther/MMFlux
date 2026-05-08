@@ -1517,7 +1517,9 @@ def collaborator_history(collaborator_id: int):
             JORNADA_MIN for a in _wk_folgas
             if a.data_referencia and not is_folga_ou_domingo(a.data_referencia)
         )
-        faltantes_semana_min = max(0, meta_semana_min - _wk_worked_min - _wk_folgas_uteis_min)
+        # Folgas na semana reduzem a própria meta (não apenas os faltantes)
+        meta_semana_min = max(0, meta_semana_min - _wk_folgas_uteis_min)
+        faltantes_semana_min = max(0, meta_semana_min - _wk_worked_min)
     else:
         meta_semana_min = 0
         faltantes_semana_min = 0
