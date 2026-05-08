@@ -709,6 +709,19 @@ def _calc_ponto_indicadores(
     folgas_usadas_count = sum(1 for a in ajustes if a.tipo == "uso_folga")
 
     extra_saldo_min = max(0, extra_acumulado_min - desconto_min)
+
+    # Créditos manuais de folga via HourEntry (admin: grant_folga)
+    q_creditos = HourEntry.query.filter(
+        HourEntry.collaborator_id == collab_id,
+        HourEntry.gives_folga == True,
+    )
+    if month_start and month_end:
+        q_creditos = q_creditos.filter(
+            HourEntry.entry_date >= month_start,
+            HourEntry.entry_date < month_end,
+        )
+    folga_bruto_min += q_creditos.count() * JORNADA_MIN
+
     folga_bruto_saldo_min = max(0, folga_bruto_min - folgas_usadas_count * JORNADA_MIN)
 
     collab = db.session.get(Collaborator, collab_id)
@@ -1268,10 +1281,12 @@ def delete_entry(entry_id: int):
     return redirect(url_for("index"))
 
 
-@app.post("/collaborators/<int:collaborator_id>/use-folga")
+@app.route("/collaborators/<int:collaborator_id>/use-folga", methods=["GET", "POST"])
 @login_required
 def use_folga(collaborator_id: int):
     """Desconta 1 dia de folga do colaborador e cria lancamento negativo de 7h20."""
+    if request.method == "GET":
+        return redirect(url_for("collaborator_history", collaborator_id=collaborator_id))
     collab = db.session.get(Collaborator, collaborator_id)
     if not collab:
         flash("Colaborador nao encontrado.", "danger")
@@ -1299,6 +1314,14 @@ def use_folga(collaborator_id: int):
         note=note,
         gives_folga=False,
     ))
+    db.session.add(PontoAjuste(
+        collaborator_id=collaborator_id,
+        tipo="uso_folga",
+        minutos=JORNADA_MIN,
+        data_referencia=folga_date,
+        obs=note,
+        criado_por="admin",
+    ))
     collab.folga_days -= 1
     db.session.commit()
     flash(
@@ -1312,10 +1335,12 @@ def use_folga(collaborator_id: int):
     return redirect(url_for("index"))
 
 
-@app.post("/collaborators/<int:collaborator_id>/grant-folga")
+@app.route("/collaborators/<int:collaborator_id>/grant-folga", methods=["GET", "POST"])
 @login_required
 def grant_folga(collaborator_id: int):
     """Credita 1 dia de folga manualmente (apenas admin), sem exigir comprovante."""
+    if request.method == "GET":
+        return redirect(url_for("collaborator_history", collaborator_id=collaborator_id))
     collab = db.session.get(Collaborator, collaborator_id)
     if not collab:
         flash("Colaborador nao encontrado.", "danger")
@@ -1337,7 +1362,7 @@ def grant_folga(collaborator_id: int):
         HourEntry(
             collaborator_id=collaborator_id,
             entry_date=grant_date,
-            hours=Decimal("0"),
+            hours=Decimal("7.33"),
             note=note,
             gives_folga=True,
         )

@@ -1,5 +1,17 @@
 # Changelog
 
+<!-- markdownlint-disable MD024 -->
+
+## [0.10.4] - 2026-05-07
+
+### Banco de Folgas
+
+- fix: "Acumuladas" agora inclui créditos manuais de folga (`HourEntry.gives_folga=True`), além dos gerados por domingos/ponto.
+- fix: "Utilizadas" agora é registrado corretamente via `PontoAjuste(tipo="uso_folga")` ao acionar "Usar Folga".
+- fix: `grant_folga` salvava `hours=0` — corrigido para `7h20m` (440 min).
+- fix: rotas `use_folga` e `grant_folga` retornavam 405 em GET (refresh/prefetch) — alteradas para aceitar GET+POST com redirect.
+- fix: lançamento de horas aceita formato H:MM (ex: `7:20`) além de decimal — `parse_decimal` reescrito.
+
 ## [0.10.3] - 2026-05-07
 
 ### Painel do colaborador
