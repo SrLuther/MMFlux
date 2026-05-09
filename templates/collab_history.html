@@ -27,6 +27,7 @@
                         <button class="btn" type="submit">Salvar colaborador</button>
                     </form>
                 </div>
+                {% if collab.folga_days > 0 %}
                 <div class="hist-action-sep"></div>
                 <div class="hist-action-section">
                     <p class="hist-action-label">&#127774; Usar Folga <span class="folga-badge">{{ collab.folga_days }}d disponív{% if collab.folga_days == 1 %}el{% else %}eis{% endif %}</span></p>
@@ -36,12 +37,12 @@
                         <input type="hidden" name="_from_history" value="{{ collab.id }}">
                         <input type="date" name="folga_date" value="{{ today }}" required>
                         <input type="text" name="note" value="Folga utilizada" placeholder="Obs">
-                        <button class="btn btn-folga" type="submit"
-                                {% if collab.folga_days < 1 %}disabled title="Sem folgas disponíveis"{% endif %}>
+                        <button class="btn btn-folga" type="submit">
                             &#127774; Usar Folga
                         </button>
                     </form>
                 </div>
+                {% endif %}{# folga_days > 0 #}
                 <div class="hist-action-sep"></div>
                 <div class="hist-action-section">
                     <p class="hist-action-label">&#43; Conceder Folga Manual</p>
