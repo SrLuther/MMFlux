@@ -34,6 +34,9 @@
             </div>
         </div>
         <nav class="actions">
+            <button id="pwa-install-btn" class="btn btn-ghost" style="display:none;font-size:.82rem;padding:.3rem .7rem" title="Adicionar à tela inicial">
+                &#128241; Instalar
+            </button>
             {% if current_user.is_authenticated %}
             <div class="nav-dropdown">
                 <button class="pill pill-dropdown" aria-haspopup="true" aria-expanded="false">
@@ -84,6 +87,46 @@
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js', { scope: '/' });
   }
+
+  // ── PWA Install prompt ──────────────────────────────────────────────────
+  (function () {
+    var installBtn = document.getElementById('pwa-install-btn');
+    var deferredPrompt = null;
+
+    // Detecta iOS (Safari não dispara beforeinstallprompt)
+    var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+    var isInStandaloneMode = window.navigator.standalone === true;
+
+    if (isIOS && !isInStandaloneMode && installBtn) {
+      installBtn.style.display = '';
+      installBtn.addEventListener('click', function () {
+        alert('Para instalar: toque no ícone de compartilhar ↑ e selecione "Adicionar à Tela Inicial".');
+      });
+    }
+
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (installBtn) installBtn.style.display = '';
+    });
+
+    if (installBtn) {
+      installBtn.addEventListener('click', function () {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then(function () {
+            deferredPrompt = null;
+            installBtn.style.display = 'none';
+          });
+        }
+      });
+    }
+
+    window.addEventListener('appinstalled', function () {
+      if (installBtn) installBtn.style.display = 'none';
+      deferredPrompt = null;
+    });
+  })();
 
   // Ajusta padding-top do body conforme altura real da topbar (suporta wrap no mobile)
   function adjustTopbarPadding() {

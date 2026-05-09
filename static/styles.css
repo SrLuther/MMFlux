@@ -1398,3 +1398,74 @@ dialog::backdrop {
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
 }
+
+/* =========================================================
+   LINHA COM DIREITO A FOLGA (tom amarelo suave)
+   ========================================================= */
+tr.row-gives-folga td {
+    background: rgba(250, 204, 21, 0.08);
+    border-bottom-color: rgba(250, 204, 21, 0.22);
+}
+tr.row-gives-folga:hover td {
+    background: rgba(250, 204, 21, 0.15);
+}
+
+/* =========================================================
+   RODAPÉ DA LISTA DE AÇÕES (scroll padding em aparelhos iOS)
+   ========================================================= */
+.hist-actions-footer {
+    height: max(1.5rem, env(safe-area-inset-bottom, 1rem));
+    min-height: 1.5rem;
+    flex-shrink: 0;
+}
+
+/* Garante que o menu admin também seja rolável em telas pequenas */
+.admin-menu {
+    max-height: 80vh;
+    overflow-y: auto;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+
+/* =========================================================
+   RESUMO DO COLABORADOR — layout compacto
+   ========================================================= */
+
+/* Hero-metrics: 4 colunas no hist-hero (mais compacto) */
+.hist-hero .hero-metrics {
+    grid-template-columns: repeat(4, 1fr);
+    gap: .4rem;
+}
+.hist-hero .metric {
+    padding: .45rem .6rem;
+}
+.hist-hero .metric strong {
+    font-size: 1rem;
+}
+.hist-hero .metric span {
+    font-size: .62rem;
+}
+
+/* saldo-bloco mais compacto dentro de pconf-wrap */
+.pconf-wrap .saldo-bloco {
+    padding: .65rem .85rem;
+}
+.pconf-wrap .saldo-bloco-titulo {
+    font-size: .68rem;
+    margin-bottom: .5rem;
+}
+.pconf-wrap .saldo-item {
+    padding: .4rem .6rem;
+    min-width: 90px;
+}
+.pconf-wrap .saldo-valor {
+    font-size: 1.1rem;
+}
+.pconf-wrap .saldo-label {
+    font-size: .65rem;
+}
+.pconf-wrap .saldo-sub {
+    font-size: .68rem;
+}
+.pconf-wrap .saldo-sep {
+    font-size: 1.1rem;
+}

@@ -912,21 +912,27 @@ def index():
         Collaborator.active.desc(),
         Collaborator.name.asc(),
     ).all()
-    # entries for the selected month
-    if month == 12:
-        month_end = date(year + 1, 1, 1)
-    else:
-        month_end = date(year, month + 1, 1)
+    # Últimas 5 entradas (independente do mês selecionado) para o painel inicial
     entries = (
         HourEntry.query.join(
             Collaborator,
             Collaborator.id == HourEntry.collaborator_id,
         )
-        .filter(
-            HourEntry.entry_date >= date(year, month, 1),
-            HourEntry.entry_date < month_end,
-        )
+        .filter(HourEntry.archived == False)  # noqa: E712
         .order_by(HourEntry.entry_date.desc(), HourEntry.id.desc())
+        .limit(5)
+        .all()
+    )
+    # Batidas do dia atual sem par (processado=False) — aparecem como "Em andamento"
+    today_date = date.today()
+    pending_punches = (
+        PunchRecord.query
+        .join(Collaborator, Collaborator.id == PunchRecord.collaborator_id)
+        .filter(
+            PunchRecord.punch_date == today_date,
+            PunchRecord.processed == False,  # noqa: E712
+        )
+        .order_by(PunchRecord.punch_time.desc())
         .all()
     )
     cards, totals = monthly_summary(year, month)
@@ -940,6 +946,7 @@ def index():
         "index.html",
         collaborators=collaborators,
         entries=entries,
+        pending_punches=pending_punches,
         cards=cards,
         totals=totals,
         daily_rate=daily_rate,
@@ -1395,6 +1402,15 @@ def collaborator_history(collaborator_id: int):
         flash("Colaborador nao encontrado.", "danger")
         return redirect(url_for("index"))
 
+    # Controle de acesso: colaborador ponto só pode ver o próprio histórico
+    sess_id = _flask_session.get("ponto_collab_id")
+    if not current_user.is_authenticated and sess_id and sess_id != collaborator_id:
+        flash("Você só pode acessar o seu próprio histórico.", "warning")
+        return redirect(url_for("collaborator_history", collaborator_id=sess_id))
+
+    # Indica se quem acessa é o dono do perfil ou admin
+    is_own_profile = current_user.is_authenticated or (sess_id == collaborator_id)
+
     all_entries = (
         HourEntry.query
         .filter_by(collaborator_id=collaborator_id)
@@ -1607,6 +1623,7 @@ def collaborator_history(collaborator_id: int):
         JORNADA_MIN=JORNADA_MIN,
         ponto_year=ponto_year,
         ponto_month=ponto_month,
+        is_own_profile=is_own_profile,
     )
 
 

@@ -56,6 +56,7 @@
                 {% endif %}
                 <div class="hist-action-sep"></div>
 
+                {% if is_own_profile %}
                 <!-- Desconto de Horas Extras -->
                 <details class="hist-action-details">
                     <summary>&#8987; Solicitar Desconto de Horas Extras</summary>
@@ -245,6 +246,10 @@
                     </div>
                 </details>
                 {% endif %}
+                {% endif %}{# end is_own_profile #}
+
+                <!-- Rodapé: espaço para rolagem em aparelhos com barra inferior -->
+                <div class="hist-actions-footer"></div>
 
             </div>
         </div>
@@ -492,7 +497,7 @@
             </thead>
             <tbody>
                 {% for e in week_data.entries %}
-                <tr>
+                <tr{% if e.gives_folga %} class="row-gives-folga"{% endif %}>
                     <td>{{ e.entry_date.strftime('%d/%m/%Y') }}</td>
                     <td class="hours {{ 'pos' if e.hours >= 0 else 'neg' }}">
                         {{ e.hours|hhmm }}{% if e.gives_folga %} <span class="folga-tag">&#127774;</span>{% endif %}

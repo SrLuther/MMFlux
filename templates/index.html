@@ -153,7 +153,9 @@
                                     aria-haspopup="true" aria-expanded="false"
                                     data-card="{{ item.collab_id }}" style="padding:.2rem .5rem">&#8943;</button>
                             <div class="card-menu" id="card-menu-{{ item.collab_id }}">
+                                {% if current_user.is_authenticated or not session.get('ponto_collab_id') or session.get('ponto_collab_id') == item.collab_id %}
                                 <a class="card-menu-item" href="{{ url_for('collaborator_history', collaborator_id=item.collab_id) }}">&#128203; Histórico</a>
+                                {% endif %}
                                 {% if current_user.is_authenticated %}
                                 <button type="button" class="card-menu-item"
                                         onclick="toggleCardEdit({{ item.collab_id }})">&#9998; Editar</button>
@@ -228,9 +230,24 @@
 
 <section class="panel">
     <div class="panel-head">
-        <h3>Lancamentos de horas</h3>
-        <small>{{ totals.month_label }}</small>
+        <h3>Lançamentos de horas</h3>
+        <small>últimas movimentações</small>
     </div>
+
+    {% if pending_punches %}
+    <div style="padding:.4rem var(--page-px,.75rem);background:#fef9e7;border-bottom:1px solid #f59e0b22">
+        <p style="font-size:.78rem;font-weight:700;color:#92400e;margin:0 0 .35rem;text-transform:uppercase;letter-spacing:.05em">&#9203; Pontos em andamento hoje</p>
+        <div style="display:flex;flex-direction:column;gap:.25rem">
+            {% for p in pending_punches %}
+            <div style="display:flex;align-items:center;gap:.5rem;font-size:.84rem">
+                <span style="background:#fef3c7;border:1px solid #f59e0b;border-radius:4px;padding:.1rem .45rem;font-weight:600;color:#92400e">{{ p.punch_time.strftime('%H:%M') }}</span>
+                <span style="color:#64748b">{{ p.collaborator.name }}</span>
+                <span style="color:#9ca3af;font-size:.75rem">aguardando par</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 
     <div class="table-wrap">
         <table>
