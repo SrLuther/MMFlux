@@ -2,6 +2,22 @@
 
 <!-- markdownlint-disable MD024 -->
 
+## [0.11.0] - 2026-05-09
+
+### Painel Principal — Cards de Colaborador
+
+- feat: nome do colaborador nos cards vira link clicável para o histórico.
+- feat: botão `...` exibido apenas para administradores (ações Editar e Alternar status).
+- feat: paginação dos cards reduzida de 10 para **3 por página**.
+
+### Histórico do Colaborador
+
+- feat: seção "Usar Folga" ocultada quando o colaborador não possui saldo de folga disponível (`folga_days < 1`).
+
+### Correções de Estabilidade
+
+- fix: rotas POST que recebiam GET (via prefetch, PWA ou browser) retornavam 405 — corrigido com redirect gracioso nas rotas: `logout`, `delete_entry`, `admin_create`, `admin_delete`, `make_collaborator_admin`, `colaborador_salvar_schedule`.
+
 ## [0.10.9] - 2026-05-09
 
 ### PWA
