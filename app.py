@@ -980,7 +980,7 @@ def login_post():
     return redirect(url_for("index"))
 
 
-@app.post("/logout")
+@app.route("/logout", methods=["GET", "POST"])
 @login_required
 def logout():
     """Encerra a sessao do usuario autenticado."""
@@ -1001,10 +1001,12 @@ def admins_list():
     return render_template("admins.html", admins=admins)
 
 
-@app.post("/settings/admins/create")
+@app.route("/settings/admins/create", methods=["GET", "POST"])
 @login_required
 def admin_create():
     """Cria um novo usuario administrador."""
+    if request.method == "GET":
+        return redirect(url_for("admins_list"))
     username = (request.form.get("username") or "").strip()
     password = (request.form.get("password") or "").strip()
     if not username or not password:
@@ -1022,10 +1024,12 @@ def admin_create():
     return redirect(url_for("admins_list"))
 
 
-@app.post("/settings/admins/<int:user_id>/delete")
+@app.route("/settings/admins/<int:user_id>/delete", methods=["GET", "POST"])
 @login_required
 def admin_delete(user_id: int):
     """Remove um usuario administrador (nao pode remover a si mesmo)."""
+    if request.method == "GET":
+        return redirect(url_for("admins_list"))
     if user_id == current_user.id:
         flash("Voce nao pode remover sua propria conta.", "danger")
         return redirect(url_for("admins_list"))
@@ -1269,10 +1273,12 @@ def update_entry(entry_id: int):
     return redirect(url_for("index"))
 
 
-@app.post("/entries/<int:entry_id>/delete")
+@app.route("/entries/<int:entry_id>/delete", methods=["GET", "POST"])
 @login_required
 def delete_entry(entry_id: int):
     """Remove um lancamento existente."""
+    if request.method == "GET":
+        return redirect(url_for("index"))
     entry = db.session.get(HourEntry, entry_id)
     if not entry:
         flash("Lancamento nao encontrado.", "danger")
@@ -2034,10 +2040,12 @@ def set_ponto_password(collaborator_id: int):
     return redirect(url_for("collaborator_history", collaborator_id=collaborator_id))
 
 
-@app.post("/collaborators/<int:collaborator_id>/make-admin")
+@app.route("/collaborators/<int:collaborator_id>/make-admin", methods=["GET", "POST"])
 @login_required
 def make_collaborator_admin(collaborator_id: int):
     """Cria uma conta de administrador para o colaborador."""
+    if request.method == "GET":
+        return redirect(url_for("index"))
     collab = db.session.get(Collaborator, collaborator_id)
     if not collab:
         flash("Colaborador nao encontrado.", "danger")
@@ -3038,10 +3046,12 @@ def colaborador_whatsapp_teste(collab_id: int):
     return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
 
 
-@app.post("/colaborador/<int:collab_id>/schedule")
+@app.route("/colaborador/<int:collab_id>/schedule", methods=["GET", "POST"])
 @ponto_required
 def colaborador_salvar_schedule(collab_id: int):
     """Salva os horários de trabalho definidos pelo colaborador."""
+    if request.method == "GET":
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
     sess_id = _flask_session.get("ponto_collab_id")
     if not current_user.is_authenticated and sess_id != collab_id:
         flash("Acesso não autorizado.", "danger")
