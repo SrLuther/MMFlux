@@ -2,6 +2,32 @@
 
 <!-- markdownlint-disable MD024 -->
 
+## [0.10.9] - 2026-05-09
+
+### PWA
+
+- feat: botão "📱 Instalar" na barra de navegação para adicionar o app à tela inicial.
+- feat: detecção automática de suporte — exibido via `beforeinstallprompt` no Android/Chrome.
+- feat: em dispositivos iOS, exibe instruções de "Compartilhar → Adicionar à Tela Inicial" ao clicar.
+- feat: botão some automaticamente após a instalação (`appinstalled` event).
+
+### Painel Principal
+
+- feat: seção "Lançamentos de horas" exibe as **5 movimentações mais recentes** (independente do mês selecionado).
+- feat: painel "Pontos em andamento hoje" mostra batidas sem par do dia (entrada sem saída correspondente) com status "aguardando par".
+
+### Histórico do Colaborador
+
+- feat: linhas com **Direito a Folga** (`gives_folga=True`) recebem destaque amarelo suave na tabela.
+- feat: seções de ação pessoal (Desconto de Extras, Uso de Folga, Horários, WhatsApp, Alterar Senha) visíveis apenas ao próprio colaborador ou admin.
+- feat: rodapé na lista de ações (`safe-area-inset-bottom`) garante acesso ao último item em aparelhos com barra de navegação inferior (iOS/Android).
+- feat: painel Resumo do Colaborador com layout mais compacto — hero-metrics em 4 colunas, saldo-blocos com fontes e espaçamentos reduzidos.
+
+### Controle de Acesso
+
+- feat: colaborador ponto é redirecionado para o próprio histórico ao tentar acessar o de outro colaborador.
+- feat: link "Histórico" nos cards da tela inicial ocultado para colaboradores sem permissão de ver o perfil alheio.
+
 ## [0.10.8] - 2026-05-08
 
 ### Feriados
