@@ -2,6 +2,13 @@
 
 <!-- markdownlint-disable MD024 -->
 
+## [0.11.1] - 2026-05-09
+
+### Correções de Estabilidade
+
+- fix: todas as rotas POST do sistema agora aceitam GET com redirect gracioso, eliminando definitivamente o erro "Method Not Allowed" (405) causado por prefetch do browser, service worker do PWA ou navegação direta.
+- Rotas corrigidas nesta versão: `settings/daily-rate`, `collaborators`, `collaborators/toggle`, `collaborators/update`, `collaborators/set-ponto-password`, `entries`, `entries/update`, `archive/month`, `archive/month/restore`, `whatsapp/resumo`, `whatsapp/pdf`, `ponto/logout-ponto`, `ponto/recuperar-senha`, `ponto/vincular`, `ponto/delete`, `colaborador/ponto-dia/add`, `colaborador/ponto/excluir`, `feriados/create`, `feriados/delete`, `colaborador/desconto-extra`, `colaborador/usar-folga-ponto`, `colaborador/whatsapp/teste`, `colaborador/alterar-senha`.
+
 ## [0.11.0] - 2026-05-09
 
 ### Painel Principal — Cards de Colaborador

@@ -1043,10 +1043,12 @@ def admin_delete(user_id: int):
     return redirect(url_for("admins_list"))
 
 
-@app.post("/settings/daily-rate")
+@app.route("/settings/daily-rate", methods=["GET", "POST"])
 @login_required
 def set_daily_rate():
     """Persiste o valor da diaria (7h20) usado para calculo de custo."""
+    if request.method == "GET":
+        return redirect(url_for("index"))
     raw = (request.form.get("daily_rate") or "").strip().replace(",", ".")
     month_param = request.form.get("month", "")
     try:
@@ -1065,10 +1067,12 @@ def set_daily_rate():
     return redirect(url_for("index", month=month_param))
 
 
-@app.post("/collaborators")
+@app.route("/collaborators", methods=["GET", "POST"])
 @login_required
 def create_collaborator():
     """Cria um novo colaborador ativo."""
+    if request.method == "GET":
+        return redirect(url_for("index"))
     name = (request.form.get("name") or "").strip()
     role = (request.form.get("role") or "").strip()
     daily_rate_raw = (request.form.get("daily_rate") or "").strip()
@@ -1106,10 +1110,12 @@ def create_collaborator():
     return redirect(url_for("index"))
 
 
-@app.post("/collaborators/<int:collaborator_id>/toggle")
+@app.route("/collaborators/<int:collaborator_id>/toggle", methods=["GET", "POST"])
 @login_required
 def toggle_collaborator(collaborator_id: int):
     """Ativa ou desativa um colaborador existente."""
+    if request.method == "GET":
+        return redirect(url_for("index"))
     collaborator = db.session.get(Collaborator, collaborator_id)
     if not collaborator:
         flash("Colaborador nao encontrado.", "danger")
@@ -1122,9 +1128,11 @@ def toggle_collaborator(collaborator_id: int):
     return redirect(url_for("index"))
 
 
-@app.post("/collaborators/<int:collaborator_id>/update")
+@app.route("/collaborators/<int:collaborator_id>/update", methods=["GET", "POST"])
 @login_required
 def update_collaborator(collaborator_id: int):
+    if request.method == "GET":
+        return redirect(url_for("collaborator_history", collaborator_id=collaborator_id))
     """Atualiza nome e funcao de um colaborador existente."""
     from_history = request.form.get("_from_history")
 
@@ -1181,10 +1189,12 @@ def update_collaborator(collaborator_id: int):
     return _redirect_target()
 
 
-@app.post("/entries")
+@app.route("/entries", methods=["GET", "POST"])
 @login_required
 def create_entry():
     """Registra um novo lancamento de horas para um colaborador."""
+    if request.method == "GET":
+        return redirect(url_for("index"))
     collaborator_id_raw = request.form.get("collaborator_id") or ""
     entry_date_raw = request.form.get("entry_date") or ""
     hours_raw = request.form.get("hours") or ""
@@ -1227,10 +1237,12 @@ def create_entry():
     return redirect(url_for("index"))
 
 
-@app.post("/entries/<int:entry_id>/update")
+@app.route("/entries/<int:entry_id>/update", methods=["GET", "POST"])
 @login_required
 def update_entry(entry_id: int):
     """Atualiza data, horas e observacao de um lancamento."""
+    if request.method == "GET":
+        return redirect(url_for("index"))
     entry = db.session.get(HourEntry, entry_id)
     if not entry:
         flash("Lancamento nao encontrado.", "danger")
@@ -1637,9 +1649,11 @@ def collaborator_history(collaborator_id: int):
 # Arquivo morto
 # ---------------------------------------------------------------------------
 
-@app.post("/archive/month")
+@app.route("/archive/month", methods=["GET", "POST"])
 @login_required
 def archive_month():
+    if request.method == "GET":
+        return redirect(url_for("index"))
     """Arquiva todos os lançamentos de um mês (remove do painel ativo)."""
     year, month = _parse_month_param(request.form.get("month"))
     month_start = date(year, month, 1)
@@ -1654,9 +1668,11 @@ def archive_month():
     return redirect(url_for("index"))
 
 
-@app.post("/archive/month/restore")
+@app.route("/archive/month/restore", methods=["GET", "POST"])
 @login_required
 def restore_month():
+    if request.method == "GET":
+        return redirect(url_for("index"))
     """Restaura lançamentos arquivados de um mês para o painel ativo."""
     year, month = _parse_month_param(request.form.get("month"))
     month_start = date(year, month, 1)
@@ -1832,9 +1848,11 @@ def summary_pdf():
         return redirect(url_for("index", month=f"{year}-{month:02d}"))
 
 
-@app.post("/whatsapp/resumo")
+@app.route("/whatsapp/resumo", methods=["GET", "POST"])
 @login_required
 def whatsapp_resumo():
+    if request.method == "GET":
+        return redirect(url_for("index"))
     """Dispara o resumo geral dos colaboradores do mes para o WhatsApp."""
     year, month = _parse_month_param(request.form.get("month"))
     cards, totals = monthly_summary(year, month)
@@ -1846,9 +1864,11 @@ def whatsapp_resumo():
     return redirect(url_for("index", month=f"{year}-{month:02d}"))
 
 
-@app.post("/whatsapp/pdf")
+@app.route("/whatsapp/pdf", methods=["GET", "POST"])
 @login_required
 def whatsapp_pdf():
+    if request.method == "GET":
+        return redirect(url_for("index"))
     """Gera o PDF do resumo mensal e envia para o grupo WhatsApp."""
     year, month = _parse_month_param(request.form.get("month"))
     cards, totals = monthly_summary(year, month)
@@ -1959,8 +1979,10 @@ def ponto_login_post():
     return redirect(next_url)
 
 
-@app.post("/ponto/logout-ponto")
+@app.route("/ponto/logout-ponto", methods=["GET", "POST"])
 def ponto_logout():
+    if request.method == "GET":
+        return redirect(url_for("ponto_login"))
     """Encerra a sessao do colaborador de ponto."""
     nome = _flask_session.pop("ponto_collab_name", "")
     _flask_session.pop("ponto_collab_id", None)
@@ -1968,8 +1990,10 @@ def ponto_logout():
     return redirect(url_for("ponto_login"))
 
 
-@app.post("/ponto/recuperar-senha")
+@app.route("/ponto/recuperar-senha", methods=["GET", "POST"])
 def ponto_recuperar_senha():
+    if request.method == "GET":
+        return redirect(url_for("ponto_login"))
     """Envia senha temporária para o WhatsApp do colaborador."""
     nome = (request.form.get("nome") or "").strip()
     if not nome:
@@ -2019,9 +2043,11 @@ def api_suggest_password():
     return jsonify({"senha": suggest_ponto_password(name)})
 
 
-@app.post("/collaborators/<int:collaborator_id>/set-ponto-password")
+@app.route("/collaborators/<int:collaborator_id>/set-ponto-password", methods=["GET", "POST"])
 @login_required
 def set_ponto_password(collaborator_id: int):
+    if request.method == "GET":
+        return redirect(url_for("collaborator_history", collaborator_id=collaborator_id))
     """Define ou redefine a senha de ponto de um colaborador (admin only)."""
     collab = db.session.get(Collaborator, collaborator_id)
     if not collab:
@@ -2521,9 +2547,11 @@ def ponto_confirmar():
     return redirect(url_for("ponto"))
 
 
-@app.post("/ponto/<int:record_id>/vincular")
+@app.route("/ponto/<int:record_id>/vincular", methods=["GET", "POST"])
 @login_required
 def ponto_vincular(record_id: int):
+    if request.method == "GET":
+        return redirect(url_for("ponto"))
     """Vincula um registro de ponto a um colaborador existente."""
     record = db.session.get(PunchRecord, record_id)
     if not record:
@@ -2547,9 +2575,11 @@ def ponto_vincular(record_id: int):
     return redirect(url_for("ponto"))
 
 
-@app.post("/ponto/<int:record_id>/delete")
+@app.route("/ponto/<int:record_id>/delete", methods=["GET", "POST"])
 @login_required
 def ponto_delete(record_id: int):
+    if request.method == "GET":
+        return redirect(url_for("ponto"))
     """Remove um registro de ponto."""
     record = db.session.get(PunchRecord, record_id)
     if not record:
@@ -2650,9 +2680,11 @@ def api_ponto_dia(collab_id: int):
     })
 
 
-@app.post("/colaborador/<int:collab_id>/ponto-dia/add")
+@app.route("/colaborador/<int:collab_id>/ponto-dia/add", methods=["GET", "POST"])
 @login_required
 def admin_ponto_dia_add(collab_id: int):
+    if request.method == "GET":
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
     """Adiciona uma batida manual para correção de jornada incompleta (admin)."""
     collab = db.session.get(Collaborator, collab_id)
     if not collab:
@@ -2700,10 +2732,11 @@ def admin_ponto_dia_add(collab_id: int):
     return redirect(url_for("collaborator_history", collaborator_id=collab_id, month=month_param))
 
 
-@app.post("/colaborador/<int:collab_id>/ponto/<int:record_id>/excluir")
+@app.route("/colaborador/<int:collab_id>/ponto/<int:record_id>/excluir", methods=["GET", "POST"])
 @login_required
 def admin_ponto_excluir(collab_id: int, record_id: int):
-    """Remove uma batida de ponto (admin) e redireciona ao histórico."""
+    if request.method == "GET":
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
     record = db.session.get(PunchRecord, record_id)
     if not record or record.collaborator_id != collab_id:
         flash("Registro não encontrado.", "danger")
@@ -2753,9 +2786,11 @@ def feriados_list():
     return render_template("feriados.html", feriados=feriados)
 
 
-@app.post("/feriados/create")
+@app.route("/feriados/create", methods=["GET", "POST"])
 @login_required
 def feriado_create():
+    if request.method == "GET":
+        return redirect(url_for("feriados_list"))
     """Cadastra um novo feriado e recalcula metas automaticamente."""
     date_raw = (request.form.get("holiday_date") or "").strip()
     descricao = (request.form.get("descricao") or "").strip()
@@ -2782,9 +2817,11 @@ def feriado_create():
     return redirect(url_for("feriados_list"))
 
 
-@app.post("/feriados/<int:feriado_id>/delete")
+@app.route("/feriados/<int:feriado_id>/delete", methods=["GET", "POST"])
 @login_required
 def feriado_delete(feriado_id: int):
+    if request.method == "GET":
+        return redirect(url_for("feriados_list"))
     """Remove um feriado cadastrado."""
     f = db.session.get(Holiday, feriado_id)
     if not f:
@@ -2859,10 +2896,11 @@ def colaborador_painel(collab_id: int):
     return redirect(url_for("collaborator_history", collaborator_id=collab_id, month=month))
 
 
-@app.post("/colaborador/<int:collab_id>/desconto-extra")
+@app.route("/colaborador/<int:collab_id>/desconto-extra", methods=["GET", "POST"])
 @ponto_required
 def colaborador_desconto_extra(collab_id: int):
-    """Registra desconto de horas extras (com trava de saldo)."""
+    if request.method == "GET":
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
     sess_id = _flask_session.get("ponto_collab_id")
     if not current_user.is_authenticated and sess_id != collab_id:
         flash("Acesso não autorizado.", "danger")
@@ -2921,10 +2959,11 @@ def colaborador_desconto_extra(collab_id: int):
     )
 
 
-@app.post("/colaborador/<int:collab_id>/usar-folga-ponto")
+@app.route("/colaborador/<int:collab_id>/usar-folga-ponto", methods=["GET", "POST"])
 @ponto_required
 def colaborador_usar_folga_ponto(collab_id: int):
-    """Registra uso de folga acumulada por ponto (com trava de saldo mínimo 7:20)."""
+    if request.method == "GET":
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
     sess_id = _flask_session.get("ponto_collab_id")
     if not current_user.is_authenticated and sess_id != collab_id:
         flash("Acesso não autorizado.", "danger")
@@ -3020,10 +3059,11 @@ def colaborador_salvar_whatsapp(collab_id: int):
     return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
 
 
-@app.post("/colaborador/<int:collab_id>/whatsapp/teste")
+@app.route("/colaborador/<int:collab_id>/whatsapp/teste", methods=["GET", "POST"])
 @ponto_required
 def colaborador_whatsapp_teste(collab_id: int):
-    """Envia mensagem de teste para o número WhatsApp cadastrado."""
+    if request.method == "GET":
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
     sess_id = _flask_session.get("ponto_collab_id")
     if not current_user.is_authenticated and sess_id != collab_id:
         flash("Acesso não autorizado.", "danger")
@@ -3078,10 +3118,11 @@ def colaborador_salvar_schedule(collab_id: int):
     return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
 
 
-@app.post("/colaborador/<int:collab_id>/alterar-senha")
+@app.route("/colaborador/<int:collab_id>/alterar-senha", methods=["GET", "POST"])
 @ponto_required
 def colaborador_alterar_senha(collab_id: int):
-    """Permite ao colaborador alterar sua própria senha de ponto."""
+    if request.method == "GET":
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
     sess_id = _flask_session.get("ponto_collab_id")
     if not current_user.is_authenticated and sess_id != collab_id:
         flash("Acesso não autorizado.", "danger")
