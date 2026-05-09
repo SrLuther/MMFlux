@@ -143,20 +143,21 @@
             <div class="card" id="card-{{ item.collab_id }}" data-collab-name="{{ item.name|lower }}">
                 <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem">
                     <div>
+                        {% if current_user.is_authenticated or not session.get('ponto_collab_id') or session.get('ponto_collab_id') == item.collab_id %}
+                        <h4><a href="{{ url_for('collaborator_history', collaborator_id=item.collab_id) }}" style="color:inherit;text-decoration:none">{{ item.name }}</a></h4>
+                        {% else %}
                         <h4>{{ item.name }}</h4>
+                        {% endif %}
                         <span>{{ item.role }}</span>
                     </div>
                     <div style="display:flex;align-items:center;gap:.4rem;flex-shrink:0">
                         <span class="status {{ 'on' if item.active else 'off' }}">{{ 'Ativo' if item.active else 'Inativo' }}</span>
+                        {% if current_user.is_authenticated %}
                         <div class="card-menu-wrap">
                             <button type="button" class="btn btn-ghost card-menu-btn"
                                     aria-haspopup="true" aria-expanded="false"
                                     data-card="{{ item.collab_id }}" style="padding:.2rem .5rem">&#8943;</button>
                             <div class="card-menu" id="card-menu-{{ item.collab_id }}">
-                                {% if current_user.is_authenticated or not session.get('ponto_collab_id') or session.get('ponto_collab_id') == item.collab_id %}
-                                <a class="card-menu-item" href="{{ url_for('collaborator_history', collaborator_id=item.collab_id) }}">&#128203; Histórico</a>
-                                {% endif %}
-                                {% if current_user.is_authenticated %}
                                 <button type="button" class="card-menu-item"
                                         onclick="toggleCardEdit({{ item.collab_id }})">&#9998; Editar</button>
                                 <form method="post" action="{{ url_for('toggle_collaborator', collaborator_id=item.collab_id) }}">
@@ -164,9 +165,9 @@
                                         &#8635; Alternar status
                                     </button>
                                 </form>
-                                {% endif %}
                             </div>
                         </div>
+                        {% endif %}
                     </div>
                 </header>
                 <dl>
