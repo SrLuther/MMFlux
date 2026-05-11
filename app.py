@@ -747,6 +747,7 @@ def _auto_punch_type(collab_id: int | None, punch_date: date) -> str:
     return "extra"
 
 
+def _handle_schedule_alerts(
     collab: Any,
     punch_date: date,
     punch_type: str | None,
