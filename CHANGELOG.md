@@ -2,6 +2,19 @@
 
 <!-- markdownlint-disable MD024 -->
 
+## [1.1.0] - 2026-05-10
+
+### Ponto — Sistema de 4 Batidas Automático
+
+- feat: seleção manual de tipo de batida (Entrada / Saída para Intervalo / Retorno / Saída Final) removida — o colaborador apenas confirma a foto, o sistema atribui o tipo automaticamente.
+- feat: batidas do dia ficam em área de staging (pendentes) até que 4 sejam registradas; nenhum intervalo é calculado antes disso.
+- feat: ao registrar a 4ª batida, tipos são atribuídos por ordem cronológica: 1ª → `entrada`, 2ª → `intervalo_saida`, 3ª → `intervalo_retorno`, 4ª → `saida_final`; batidas extras recebem tipo `extra`.
+- feat: campo `gives_folga` derivado automaticamente de qualquer batida do dia com `gives_folga=True` (domingos).
+- feat: tela `ponto_confirmar` exibe indicador visual de progresso do dia com 4 slots (feito / atual / pendente) e contador X/4.
+- feat: painel do colaborador (`collab_history`) exibe seção "Batidas de hoje em processamento" com os horários já registrados e quantas ainda faltam.
+- fix: `_try_register_interval` não incrementa `folga_days` em dobro — verificação `had_folga_before` evita múltiplos incrementos nas chamadas do mesmo dia.
+- fix: `_calc_ponto_indicadores` exclui `HourEntry` com nota `LIKE 'Ponto:%'` do cálculo de créditos manuais de folga, eliminando double-counting.
+
 ## [1.0.1] - 2026-05-10
 
 ### Câmera — Tela de Carregamento
