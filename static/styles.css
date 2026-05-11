@@ -1469,3 +1469,81 @@ tr.row-gives-folga:hover td {
 .pconf-wrap .saldo-sep {
     font-size: 1.1rem;
 }
+
+/* ─── Progresso de batidas do dia ───────────────────────────────────────── */
+.pconf-day-progress {
+    background: rgba(0,0,0,.04);
+    border: 1px solid rgba(0,0,0,.1);
+    border-radius: 12px;
+    padding: .85rem 1rem;
+    margin-bottom: 1.25rem;
+}
+.pconf-dp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: .7rem;
+}
+.pconf-dp-title {
+    font-size: .82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    opacity: .65;
+}
+.pconf-dp-count {
+    font-size: .85rem;
+    font-weight: 700;
+    color: var(--teal);
+}
+.pconf-dp-slots {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: .5rem;
+}
+.pconf-dp-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .2rem;
+    padding: .55rem .3rem;
+    border-radius: 8px;
+    text-align: center;
+}
+.pconf-dp-time {
+    font-size: .9rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.pconf-dp-label {
+    font-size: .64rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    opacity: .65;
+}
+.pconf-dp-done {
+    background: rgba(16,185,129,.12);
+    border: 1px solid rgba(16,185,129,.35);
+    color: var(--teal);
+}
+.pconf-dp-now {
+    background: rgba(251,191,36,.15);
+    border: 2px solid #fbbf24;
+    color: #92400e;
+}
+.pconf-dp-pending {
+    background: rgba(0,0,0,.04);
+    border: 1px dashed rgba(0,0,0,.18);
+    color: var(--muted);
+}
+.pconf-dp-note {
+    font-size: .79rem;
+    margin-top: .65rem;
+    text-align: center;
+    opacity: .7;
+}
+.pconf-dp-ready {
+    color: var(--teal);
+    font-weight: 600;
+    opacity: 1;
+}

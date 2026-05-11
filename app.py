@@ -943,9 +943,12 @@ def _calc_ponto_indicadores(
     extra_saldo_min = max(0, extra_acumulado_min - desconto_min)
 
     # Créditos manuais de folga via HourEntry (admin: grant_folga)
+    # Exclui entradas geradas pelo ponto (nota começa com "Ponto:") pois
+    # essas já são contabilizadas via dia_e_folga no loop de batidas acima.
     q_creditos = HourEntry.query.filter(
         HourEntry.collaborator_id == collab_id,
         HourEntry.gives_folga == True,
+        ~HourEntry.note.like("Ponto:%"),
     )
     if month_start and month_end:
         q_creditos = q_creditos.filter(
@@ -1831,6 +1834,15 @@ def collaborator_history(collaborator_id: int):
     sched_turnos = _get_schedule(collab)
     sched_domingo = _get_domingo_schedule(collab)
 
+    # Batidas pendentes de hoje (ainda não processadas — aguardando 4 batidas)
+    today = date.today()
+    pending_punches_today = (
+        PunchRecord.query
+        .filter_by(collaborator_id=collaborator_id, punch_date=today, processed=False)
+        .order_by(PunchRecord.punch_time.asc())
+        .all()
+    )
+
     return render_template(
         "collab_history.html",
         collab=collab,
@@ -1866,6 +1878,10 @@ def collaborator_history(collaborator_id: int):
         ponto_year=ponto_year,
         ponto_month=ponto_month,
         is_own_profile=is_own_profile,
+        pending_punches_today=[
+            {"time": p.punch_time.strftime("%H:%M"), "id": p.id}
+            for p in pending_punches_today
+        ],
     )
 
 
@@ -2526,54 +2542,27 @@ def ponto_upload():
         .all()
     )
 
-    # Turnos do colaborador — auto-detecta pelo histórico se ainda não configurado
-    if collab:
-        _auto_detect_schedule(collab)
-    sched_turnos = _get_schedule(collab) if collab else []
-
-    # Batidas já registradas no dia (para saber qual tipo vem a seguir)
-    existing_punches: list[PunchRecord] = []
+    # Batidas já registradas no dia — apenas para exibir o progresso na tela
     is_domingo = False
-    _pd_for_seq: date | None = None
+    today_punches: list[dict] = []
     if collab and data.data:
         try:
-            _pd_for_seq = datetime.strptime(data.data, "%d/%m/%Y").date()
-            is_domingo = _pd_for_seq.weekday() == 6
-            existing_punches = (
-                PunchRecord.query
-                .filter_by(collaborator_id=collab.id, punch_date=_pd_for_seq)
-                .order_by(PunchRecord.punch_time.asc())
-                .all()
-            )
+            _pd = datetime.strptime(data.data, "%d/%m/%Y").date()
+            is_domingo = _pd.weekday() == 6
+            today_punches = [
+                {"time": p.punch_time.strftime("%H:%M")}
+                for p in PunchRecord.query
+                    .filter_by(collaborator_id=collab.id, punch_date=_pd)
+                    .order_by(PunchRecord.punch_time.asc())
+                    .all()
+            ]
         except ValueError:
             pass
     elif data.data:
         try:
-            _d = datetime.strptime(data.data, "%d/%m/%Y").date()
-            _pd_for_seq = _d
-            is_domingo = _d.weekday() == 6
+            is_domingo = datetime.strptime(data.data, "%d/%m/%Y").date().weekday() == 6
         except ValueError:
             pass
-
-    # Tipo de batida determinado pela sequência + horário capturado
-    auto_punch_type = (
-        _auto_punch_type(
-            collab.id if collab else None,
-            _pd_for_seq,
-            punch_time_str=data.hora or None,
-            collab=collab,
-        )
-        if _pd_for_seq
-        else "entrada"
-    )
-    _TIPOS_LABEL = {
-        "entrada": "Entrada",
-        "intervalo_saida": "Saída para Intervalo",
-        "intervalo_retorno": "Retorno do Intervalo",
-        "saida_final": "Saída Final",
-        "extra": "Turno Extra",
-    }
-    auto_punch_label = _TIPOS_LABEL.get(auto_punch_type, auto_punch_type)
 
     return render_template(
         "ponto_confirmar.html",
@@ -2582,30 +2571,26 @@ def ponto_upload():
         filename=filename,
         collab=collab,
         collaborators=collaborators,
-        existing_count=existing_count,
-        sched_turnos=sched_turnos,
         is_collab_session=bool(sess_collab_id and not current_user.is_authenticated),
         is_domingo=is_domingo,
-        auto_punch_type=auto_punch_type,
-        auto_punch_label=auto_punch_label,
-        existing_punches=[
-            {"type": p.punch_type, "time": p.punch_time.strftime("%H:%M")}
-            for p in existing_punches
-        ],
+        today_punches=today_punches,
     )
 
 
 def _try_register_interval(
     collab_id: int,
     punch_date: date,
-    gives_folga: bool = False,
 ) -> str | None:
-    """Reprocessa TODOS os registros de ponto do colaborador no dia.
+    """Aguarda 4 batidas do dia para processar automaticamente.
 
-    Apaga HourEntries anteriores gerados por ponto e recria os pares
-    em ordem cronologica (1a+2a batida, 3a+4a, etc.).
-    Retorna descricao dos intervalos gerados ou None se nao houver par.
+    Enquanto houver menos de 4 registros, mantém as batidas pendentes
+    (processed=False). Com 4 ou mais, atribui tipos por posição cronológica,
+    cria HourEntries e marca tudo como processado.
+
+    Retorna descrição das horas geradas ou None se o dia ainda está incompleto.
     """
+    _TYPE_SEQ = ["entrada", "intervalo_saida", "intervalo_retorno", "saida_final"]
+
     # Busca todos os registros do dia (processados ou nao)
     all_punches = (
         PunchRecord.query
@@ -2614,8 +2599,8 @@ def _try_register_interval(
         .all()
     )
 
-    if len(all_punches) < 2:
-        # Marca como nao processado para aguardar a proxima batida
+    if len(all_punches) < 4:
+        # Marca como nao processado para aguardar mais batidas
         for p in all_punches:
             p.processed = False
         return None
@@ -2627,12 +2612,21 @@ def _try_register_interval(
         .filter(HourEntry.note.like("Ponto:%"))
         .all()
     )
+    # Verifica se folga já foi concedida neste dia (evita incremento duplo)
+    had_folga_before = any(e.gives_folga for e in existing_entries)
     for e in existing_entries:
         db.session.delete(e)
 
-    # Desmarca todos como nao processados
+    # Desmarca todos como nao processados antes de reatribuir tipos
     for p in all_punches:
         p.processed = False
+
+    # Atribui tipos por posição cronológica
+    for idx, p in enumerate(all_punches):
+        p.punch_type = _TYPE_SEQ[idx] if idx < len(_TYPE_SEQ) else "extra"
+
+    # Folga: se qualquer batida do dia foi marcada como gives_folga (ex: domingo)
+    gives_folga = any(p.gives_folga for p in all_punches)
 
     # Emparelha em ordem cronologica: (0,1), (2,3), (4,5)...
     intervals = []
@@ -2670,7 +2664,7 @@ def _try_register_interval(
     if not intervals:
         return None
 
-    if gives_folga:
+    if gives_folga and not had_folga_before:
         collab = db.session.get(Collaborator, collab_id)
         if collab:
             collab.folga_days += 1
@@ -2692,9 +2686,7 @@ def ponto_confirmar():
     ad_key = (request.form.get("ad_key") or "").strip() or None
     gives_folga = bool(request.form.get("gives_folga"))
     collab_id_raw = (request.form.get("collaborator_id") or "").strip()
-    punch_type = (request.form.get("punch_type") or "").strip() or None
     origin = "admin" if current_user.is_authenticated else "automatico"
-    gives_folga = bool(request.form.get("gives_folga"))
 
     # Colaborador logado via sessão — identidade já garantida pelo login
     sess_collab_id = _flask_session.get("ponto_collab_id")
@@ -2755,16 +2747,6 @@ def ponto_confirmar():
     # Hashear CPF antes de gravar (ou vazio se não informado)
     cpf_to_store = _hash_cpf(raw_cpf) if raw_cpf and len(raw_cpf) == 11 else ""
 
-    # Tipo de batida: usa o form; se ausente, deriva pela sequência do dia
-    if not punch_type and collab_id:
-        collab_obj = db.session.get(Collaborator, collab_id)
-        punch_type = _auto_punch_type(
-            collab_id,
-            punch_date,
-            punch_time_str=hora_str or None,
-            collab=collab_obj,
-        )
-
     record = PunchRecord(
         collaborator_id=collab_id,
         raw_cpf=cpf_to_store,
@@ -2775,7 +2757,7 @@ def ponto_confirmar():
         nrep=nrep,
         ad_key=ad_key,
         image_filename=filename or None,
-        punch_type=punch_type or None,
+        punch_type=None,  # tipo atribuído automaticamente ao completar 4 batidas
         origin=origin,
         gives_folga=gives_folga,
     )
@@ -2784,24 +2766,34 @@ def ponto_confirmar():
 
     interval_msg: str | None = None
     if collab_id:
-        interval_msg = _try_register_interval(collab_id, punch_date, gives_folga)
+        interval_msg = _try_register_interval(collab_id, punch_date)
 
     db.session.commit()
+
+    # Conta total de batidas do dia após salvar (para mensagem de progresso)
+    count_today = PunchRecord.query.filter_by(
+        collaborator_id=collab_id, punch_date=punch_date
+    ).count() if collab_id else 0
+
+    # Tipo derivado por posição (para alertas e WA — não armazenado até processar)
+    _POS_TYPE = {1: "entrada", 2: "intervalo_saida", 3: "intervalo_retorno", 4: "saida_final"}
+    derived_type = _POS_TYPE.get(count_today, "extra")
 
     collab = db.session.get(Collaborator, collab_id) if collab_id else None
     collab_label = collab.name if collab else f"ID {collab_id}"
 
     if interval_msg:
         flash(
-            f"Ponto registrado: {collab_label} — {data_str} {hora_str}. "
-            f"Intervalo lancado: {interval_msg}.",
+            f"✅ Dia completo processado! {collab_label} — {data_str}. "
+            f"Horas: {interval_msg}.",
             "success",
         )
     elif collab_id:
+        faltam = max(0, 4 - count_today)
         flash(
-            f"Ponto registrado: {collab_label} — {data_str} {hora_str}. "
-            "Aguardando segunda batida para calcular intervalo.",
-            "success",
+            f"Batida {count_today}/4 registrada — {collab_label} {hora_str}. "
+            f"Aguardando {faltam} batida{'s' if faltam != 1 else ''} para processar o dia.",
+            "info",
         )
     else:
         flash(
@@ -2816,24 +2808,14 @@ def ponto_confirmar():
             collab.name,
             data_str,
             hora_str,
-            punch_type or "—",
+            derived_type,
             origin,
             para=collab.whatsapp,
         )
-        # Verifica jornada incompleta no dia
-        all_day = (
-            PunchRecord.query
-            .filter_by(collaborator_id=collab_id, punch_date=punch_date)
-            .order_by(PunchRecord.punch_time.asc())
-            .all()
-        )
-        day_result = _process_punches_dia(all_day)
-        if day_result["incompleto"]:
-            wz.jornada_incompleta(collab.name, data_str, para=collab.whatsapp)
 
-    # Lembrete agendado por horário definido
+    # Lembrete agendado por horário (baseado em posição da batida)
     if collab:
-        _handle_schedule_alerts(collab, punch_date, punch_type, data_str)
+        _handle_schedule_alerts(collab, punch_date, derived_type, data_str)
 
     return redirect(url_for("ponto"))
 
@@ -3301,6 +3283,9 @@ def colaborador_usar_folga_ponto(collab_id: int):
             criado_por=criado_por,
         )
     )
+    collab = db.session.get(Collaborator, collab_id)
+    if collab and collab.folga_days > 0:
+        collab.folga_days = max(0, collab.folga_days - 1)
     db.session.commit()
     saldo_restante = saldo_min - JORNADA_MIN
     flash(

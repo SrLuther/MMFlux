@@ -10,14 +10,6 @@
     <div class="hist-hero-body">
         <p class="hero-tag">Confirme as informações antes de registrar</p>
         <h2 class="hist-name">Registro de Ponto</h2>
-        {% if existing_count > 0 %}
-        <p class="pconf-pair-notice">
-            &#9888; Já existe <strong>{{ existing_count }}</strong>
-            batida{{ 's' if existing_count > 1 else '' }} não processada{{ 's' if existing_count > 1 else '' }}
-            para esse colaborador neste dia — ao confirmar, o intervalo
-            será calculado automaticamente.
-        </p>
-        {% endif %}
     </div>
 </section>
 
@@ -26,6 +18,42 @@
         <input type="hidden" name="filename" value="{{ filename }}">
         <input type="hidden" name="nsr"      value="{{ data.nsr }}">
         <input type="hidden" name="ad_key"   value="{{ data.ad_key }}">
+
+        <!-- Progresso do dia: 4 batidas -->
+        {% set slot_labels = ['Entrada', 'Int. Saída', 'Retorno', 'Saída'] %}
+        {% set total_after = today_punches|length + 1 %}
+        <div class="pconf-day-progress">
+            <div class="pconf-dp-header">
+                <span class="pconf-dp-title">Batidas do dia</span>
+                <span class="pconf-dp-count">{{ total_after }}/4</span>
+            </div>
+            <div class="pconf-dp-slots">
+                {% for i in range(4) %}
+                {% if i < today_punches|length %}
+                <div class="pconf-dp-slot pconf-dp-done">
+                    <span class="pconf-dp-time">{{ today_punches[i].time }}</span>
+                    <span class="pconf-dp-label">{{ slot_labels[i] }}</span>
+                </div>
+                {% elif i == today_punches|length %}
+                <div class="pconf-dp-slot pconf-dp-now">
+                    <span class="pconf-dp-time">{{ data.hora or '—' }}</span>
+                    <span class="pconf-dp-label">{{ slot_labels[i] }}</span>
+                </div>
+                {% else %}
+                <div class="pconf-dp-slot pconf-dp-pending">
+                    <span class="pconf-dp-time">—</span>
+                    <span class="pconf-dp-label">{{ slot_labels[i] }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% if today_punches|length >= 3 %}
+            <p class="pconf-dp-note pconf-dp-ready">&#10003; Dia completo &mdash; horas calculadas ao confirmar</p>
+            {% else %}
+            {% set faltam = 3 - today_punches|length %}
+            <p class="pconf-dp-note">Aguardando {{ faltam }} batida{{ 's' if faltam != 1 else '' }} para processar o dia</p>
+            {% endif %}
+        </div>
 
         <!-- Preview da imagem -->
         {% if filename %}
@@ -162,51 +190,6 @@
             {% endif %}
 
         </div><!-- /.pconf-grid -->
-
-        <!-- Tipo de batida (Bloco 2) — definido automaticamente pela sequência do dia -->
-        <div class="pconf-field pconf-full" style="margin-top:.5rem">
-            <label>Tipo de Batida</label>
-
-            {# Badge de auto-detecção #}
-            <div id="pconf-tipo-badge" style="display:flex;align-items:center;gap:.75rem;padding:.55rem .9rem;border-radius:8px;background:rgba(16,185,129,.09);border:1px solid rgba(16,185,129,.3)">
-                <span style="font-weight:600;color:var(--teal)">
-                    {% if auto_punch_type == "entrada" %}&#9654;
-                    {% elif auto_punch_type == "intervalo_saida" %}&#9654;
-                    {% elif auto_punch_type == "intervalo_retorno" %}&#9654;
-                    {% elif auto_punch_type == "saida_final" %}&#9632;
-                    {% else %}&#9654;
-                    {% endif %}
-                    {{ auto_punch_label }}
-                </span>
-                <span style="font-size:.78rem;opacity:.6">detectado automaticamente</span>
-                <button type="button" id="pconf-tipo-override-btn"
-                        style="margin-left:auto;font-size:.75rem;background:none;border:none;color:var(--muted);cursor:pointer;text-decoration:underline;padding:0">
-                    corrigir
-                </button>
-            </div>
-
-            {# Input oculto com o valor auto-detectado (enviado pelo form) #}
-            <input type="hidden" name="punch_type" id="pconf-punch-type-hidden" value="{{ auto_punch_type }}">
-
-            {# Dropdown de correção — oculto por padrão #}
-            <div id="pconf-tipo-override" style="display:none;margin-top:.5rem">
-                <select id="pc-tipo" style="width:100%"
-                        onchange="document.getElementById('pconf-punch-type-hidden').value = this.value">
-                    <option value="entrada"           {% if auto_punch_type=='entrada'           %}selected{% endif %}>&#9654; Entrada</option>
-                    <option value="intervalo_saida"   {% if auto_punch_type=='intervalo_saida'   %}selected{% endif %}>&#9654; Saída para Intervalo</option>
-                    <option value="intervalo_retorno" {% if auto_punch_type=='intervalo_retorno' %}selected{% endif %}>&#9654; Retorno do Intervalo</option>
-                    <option value="saida_final"       {% if auto_punch_type=='saida_final'       %}selected{% endif %}>&#9632; Saída Final</option>
-                    <option value="extra"             {% if auto_punch_type=='extra'             %}selected{% endif %}>&#9654; Turno Extra</option>
-                </select>
-            </div>
-
-            {% if not sched_turnos %}
-            <p class="pconf-muted-hint" style="margin-top:.4rem">
-                &#8505; Sem escala definida — tipo baseado na sequência do dia.
-                <a href="{{ url_for('collaborator_history', collaborator_id=collab.id) if collab else '#' }}" style="color:var(--teal)">Configurar horários</a> para sugestões mais precisas.
-            </p>
-            {% endif %}
-        </div>
 
         <div class="pconf-folga-opt">
             {% if is_domingo %}
@@ -404,14 +387,6 @@
         if (this.files && this.files[0]) {
             document.getElementById('pconf-retry-form').submit();
         }
-    });
-
-    // ─── Override de tipo de batida ────────────────────────────────────────
-    document.getElementById('pconf-tipo-override-btn').addEventListener('click', function () {
-        var panel = document.getElementById('pconf-tipo-override');
-        var isHidden = panel.style.display === 'none';
-        panel.style.display = isHidden ? '' : 'none';
-        this.textContent = isHidden ? 'ocultar' : 'corrigir';
     });
     </script>
 

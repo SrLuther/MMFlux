@@ -359,6 +359,40 @@
     </div>
 </section>
 
+<!-- ─── BATIDAS PENDENTES DE HOJE ────────────────────────────────────── -->
+{% if pending_punches_today %}
+<div class="pconf-wrap" style="max-width:860px;margin:0 auto">
+    <div class="pconf-day-progress" style="margin-top:1.5rem;margin-bottom:0">
+        <div class="pconf-dp-header">
+            <span class="pconf-dp-title">&#9200; Batidas de hoje em processamento</span>
+            <span class="pconf-dp-count">{{ pending_punches_today|length }}/4</span>
+        </div>
+        {% set slot_labels = ['Entrada', 'Int. Saída', 'Retorno', 'Saída'] %}
+        <div class="pconf-dp-slots">
+            {% for i in range(4) %}
+            {% if i < pending_punches_today|length %}
+            <div class="pconf-dp-slot pconf-dp-done">
+                <span class="pconf-dp-time">{{ pending_punches_today[i].time }}</span>
+                <span class="pconf-dp-label">{{ slot_labels[i] }}</span>
+            </div>
+            {% else %}
+            <div class="pconf-dp-slot pconf-dp-pending">
+                <span class="pconf-dp-time">—</span>
+                <span class="pconf-dp-label">{{ slot_labels[i] }}</span>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+        {% if pending_punches_today|length >= 4 %}
+        <p class="pconf-dp-note pconf-dp-ready">&#10003; Dia completo — será processado na próxima atualização</p>
+        {% else %}
+        {% set faltam = 4 - pending_punches_today|length %}
+        <p class="pconf-dp-note">Aguardando {{ faltam }} batida{{ 's' if faltam != 1 else '' }} para calcular as horas do dia</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 <!-- ─── SALDOS ACUMULADOS ──────────────────────────────────────────────── -->
 <div class="pconf-wrap" style="max-width:860px;margin:0 auto">
 
