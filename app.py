@@ -930,7 +930,9 @@ def _calc_ponto_indicadores(
             or any(getattr(p, "gives_folga", False) for p in day_punches)
         )
         if dia_e_folga:
-            folga_bruto_min += normal_today
+            # Folga sempre vale 1 dia completo (JORNADA_MIN), independente
+            # de a jornada do domingo ser mais curta (6h20 vs 7h20).
+            folga_bruto_min += JORNADA_MIN
         else:
             h_normais_min += normal_today
         if worked_min > jornada_dia:
@@ -1843,6 +1845,39 @@ def collaborator_history(collaborator_id: int):
         .all()
     )
 
+    # ── Origens do banco de folgas (datas que geraram crédito) ──────────────
+    _all_proc = (
+        PunchRecord.query
+        .filter_by(collaborator_id=collaborator_id, processed=True)
+        .order_by(PunchRecord.punch_date.asc(), PunchRecord.punch_time.asc())
+        .all()
+    )
+    _proc_by_date: dict = {}
+    for _pp in _all_proc:
+        _proc_by_date.setdefault(_pp.punch_date, []).append(_pp)
+
+    folga_origem_ponto = []
+    for _d, _dp in sorted(_proc_by_date.items()):
+        _res = _process_punches_dia(_dp)
+        if _res["incompleto"] or _res["minutos"] == 0:
+            continue
+        _e_folga = is_folga_ou_domingo(_d) or any(
+            getattr(_pp, "gives_folga", False) for _pp in _dp
+        )
+        if _e_folga:
+            _lbl = "Domingo" if _d.weekday() == 6 else "Feriado"
+            folga_origem_ponto.append({"date": _d, "label": _lbl})
+
+    folga_origem_manual = (
+        HourEntry.query.filter(
+            HourEntry.collaborator_id == collaborator_id,
+            HourEntry.gives_folga == True,
+            ~HourEntry.note.like("Ponto:%"),
+        )
+        .order_by(HourEntry.entry_date.asc())
+        .all()
+    )
+
     return render_template(
         "collab_history.html",
         collab=collab,
@@ -1882,6 +1917,8 @@ def collaborator_history(collaborator_id: int):
             {"time": p.punch_time.strftime("%H:%M"), "id": p.id}
             for p in pending_punches_today
         ],
+        folga_origem_ponto=folga_origem_ponto,
+        folga_origem_manual=folga_origem_manual,
     )
 
 

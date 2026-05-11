@@ -367,7 +367,7 @@
             <span class="pconf-dp-title">&#9200; Batidas de hoje em processamento</span>
             <span class="pconf-dp-count">{{ pending_punches_today|length }}/4</span>
         </div>
-        {% set slot_labels = ['Entrada', 'Int. Saída', 'Retorno', 'Saída'] %}
+        {% set slot_labels = ['Ponto 1', 'Ponto 2', 'Ponto 3', 'Ponto 4'] %}
         <div class="pconf-dp-slots">
             {% for i in range(4) %}
             {% if i < pending_punches_today|length %}
@@ -448,6 +448,30 @@
                 <small class="saldo-sub">{{ fmt_min(ind_total.folga_bruto_saldo_min) }}h</small>
             </div>
         </div>
+        {% set total_origens = folga_origem_ponto|length + folga_origem_manual|length %}
+        {% if total_origens > 0 %}
+        <details style="margin-top:.65rem">
+            <summary style="font-size:.82rem;cursor:pointer;color:var(--teal);font-weight:600">
+                &#128197; Ver datas de origem ({{ total_origens }} dia{{ 's' if total_origens != 1 else '' }})
+            </summary>
+            <ul style="margin:.5rem 0 0 .25rem;padding:0;list-style:none;font-size:.82rem">
+                {% for o in folga_origem_ponto %}
+                <li style="padding:.25rem .5rem;border-left:3px solid var(--teal);margin-bottom:.3rem;background:rgba(16,185,129,.06);border-radius:0 6px 6px 0">
+                    <strong>{{ o.date.strftime('%d/%m/%Y') }}</strong>
+                    <span style="color:var(--muted);margin-left:.4rem">— {{ o.label }}</span>
+                    <span style="float:right;font-size:.78rem;color:var(--teal)">+1d folga</span>
+                </li>
+                {% endfor %}
+                {% for e in folga_origem_manual %}
+                <li style="padding:.25rem .5rem;border-left:3px solid #a78bfa;margin-bottom:.3rem;background:rgba(167,139,250,.07);border-radius:0 6px 6px 0">
+                    <strong>{{ e.entry_date.strftime('%d/%m/%Y') }}</strong>
+                    <span style="color:var(--muted);margin-left:.4rem">— Crédito manual{% if e.note %}: {{ e.note }}{% endif %}</span>
+                    <span style="float:right;font-size:.78rem;color:#a78bfa">+1d folga</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
     </div>
 
     <!-- ─── HISTÓRICO DE AJUSTES ─────────────────────────────────── -->
