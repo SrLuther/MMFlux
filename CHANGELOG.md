@@ -2,6 +2,27 @@
 
 <!-- markdownlint-disable MD024 -->
 
+## [Unreleased]
+
+### Câmera — Tela de Carregamento
+
+- feat: overlay de carregamento animado ao capturar foto do comprovante (modo câmera e modo galeria).
+- feat: ícone de comprovante com linha de scan verde varrendo continuamente enquanto aguarda OCR.
+- feat: **porcentagem de progresso real** exibida no overlay — 0→40% reflete o upload real via XHR; 40→95% simula o processamento OCR no servidor com desaceleração suave; 100% ao receber resposta.
+- feat: barra de progresso troca de animação indeterminada para determinada assim que o progresso é conhecido.
+- feat: botão "Capturar" reposicionado para dentro do viewport da câmera (`position: absolute; bottom: 1.1rem`), sempre visível em dispositivos móveis sem necessidade de scroll.
+
+### Ponto — Detecção Automática de Tipo de Batida por Horário
+
+- fix: sistema cruzava apenas a **sequência de batidas do dia** para sugerir o tipo — uma foto de saída capturada como primeira batida era classificada incorretamente como "Entrada".
+- fix: `_auto_punch_type()` agora recebe o horário extraído pelo OCR e compara com a escala do colaborador; se o horário estiver a ≤ 1 h da saída prevista (ou após ela), sugere `Saída Final` diretamente.
+- fix: mesmo comportamento aplicado no `ponto_confirmar` (fallback quando `punch_type` está ausente no form).
+
+### Ponto — Banner de Domingo
+
+- feat: quadro amarelo de domingo substituído por banner full-width com borda lateral destacada, ícone ☀️ e informações completas: jornada de 6h20, horas extra e direito a folga.
+- fix: checkbox desabilitado (sem função) removido do banner — o campo oculto `gives_folga=1` permanece garantindo o valor correto no envio.
+
 ## [1.2.0] - 2026-05-10
 
 ### Domingos — Jornada e Escala Personalizada
