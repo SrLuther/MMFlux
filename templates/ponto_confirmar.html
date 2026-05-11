@@ -210,11 +210,15 @@
 
         <div class="pconf-folga-opt">
             {% if is_domingo %}
-            <div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);border-radius:8px">
-                <input type="checkbox" name="gives_folga" value="1" checked disabled style="accent-color:var(--teal)">
-                <span>&#127774; <strong>Domingo</strong> — dá direito a folga <span style="font-size:.8rem;opacity:.7">(definido automaticamente)</span></span>
+            <div class="pconf-domingo-banner">
+                <div class="pconf-domingo-icon">&#127774;</div>
+                <div class="pconf-domingo-info">
+                    <strong>Domingo</strong>
+                    <span>Jornada de 6h20 &bull; horas acima contam como extra &bull; dá direito a folga</span>
+                </div>
+                <span class="pconf-domingo-tag">automático</span>
             </div>
-            {# campo oculto garante que gives_folga=1 seja enviado mesmo com checkbox disabled #}
+            {# campo oculto garante que gives_folga=1 seja enviado #}
             <input type="hidden" name="gives_folga" value="1">
             {% else %}
             <label class="pconf-folga-label">
@@ -633,6 +637,48 @@
 }
 .pconf-folga-opt {
     margin: .75rem 0 .25rem;
+}
+/* ── Banner de domingo ── */
+.pconf-domingo-banner {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .65rem 1rem;
+    background: rgba(251,191,36,.13);
+    border: 1px solid rgba(251,191,36,.5);
+    border-left: 4px solid rgba(251,191,36,.8);
+    border-radius: 8px;
+    width: 100%;
+    box-sizing: border-box;
+}
+.pconf-domingo-icon {
+    font-size: 1.5rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.pconf-domingo-info {
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    flex: 1;
+}
+.pconf-domingo-info strong {
+    font-size: .95rem;
+    color: #fbbf24;
+}
+.pconf-domingo-info span {
+    font-size: .78rem;
+    color: rgba(255,255,255,.6);
+}
+.pconf-domingo-tag {
+    font-size: .7rem;
+    padding: .2rem .5rem;
+    background: rgba(251,191,36,.2);
+    border: 1px solid rgba(251,191,36,.4);
+    border-radius: 999px;
+    color: #fbbf24;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 .pconf-folga-label {
     display: inline-flex;

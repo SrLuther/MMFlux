@@ -730,11 +730,19 @@ def _auto_detect_schedule(collab: Any) -> None:
         db.session.commit()
 
 
-def _auto_punch_type(collab_id: int | None, punch_date: date) -> str:
+def _auto_punch_type(
+    collab_id: int | None,
+    punch_date: date,
+    punch_time_str: str | None = None,
+    collab: Any = None,
+) -> str:
     """Retorna o tipo de batida esperado pela sequência do dia.
 
     Conta quantas batidas o colaborador já tem no dia e retorna o próximo tipo:
     0 → entrada | 1 → intervalo_saida | 2 → intervalo_retorno | 3 → saida_final | 4+ → extra
+
+    Se punch_time_str (HH:MM) for fornecido e count==0, usa o horário para distinguir
+    entrada de saida_final — evita que uma foto de saída seja classificada como entrada.
     """
     if not collab_id:
         return "entrada"
@@ -742,6 +750,42 @@ def _auto_punch_type(collab_id: int | None, punch_date: date) -> str:
         collaborator_id=collab_id,
         punch_date=punch_date,
     ).count()
+
+    # ── Correção por horário (apenas primeira batida do dia) ──────────────
+    if count == 0 and punch_time_str:
+        try:
+            ph, pm = map(int, punch_time_str.split(":"))
+            pt_min = ph * 60 + pm  # minutos desde meia-noite
+
+            saida_min: int | None = None
+            is_dom = punch_date.weekday() == 6
+
+            if collab is not None:
+                if is_dom:
+                    sdom = _get_domingo_schedule(collab)
+                    if sdom and sdom.get("entrada"):
+                        eh, em = map(int, sdom["entrada"].split(":"))
+                        # Domingo: jornada de 6h20 após a entrada
+                        saida_min = eh * 60 + em + 380  # 6×60+20
+                else:
+                    turnos = _get_schedule(collab)
+                    if turnos and isinstance(turnos, list):
+                        sf = (turnos[0] or {}).get("saida_final", "")
+                        if sf:
+                            sh, sm = map(int, sf.split(":"))
+                            saida_min = sh * 60 + sm
+
+            # Fallback: 11h30 como limiar genérico se não há escala definida
+            if saida_min is None:
+                saida_min = 11 * 60 + 30
+
+            # Se a hora capturada está a ≤1h da saída prevista ou após → saida_final
+            if pt_min >= saida_min - 60:
+                return "saida_final"
+        except Exception:
+            pass
+    # ─────────────────────────────────────────────────────────────────────
+
     if count < len(_PUNCH_SEQUENCE):
         return _PUNCH_SEQUENCE[count]
     return "extra"
@@ -2511,8 +2555,17 @@ def ponto_upload():
         except ValueError:
             pass
 
-    # Tipo de batida determinado pela sequência do dia (sem depender de escala)
-    auto_punch_type = _auto_punch_type(collab.id if collab else None, _pd_for_seq) if _pd_for_seq else "entrada"
+    # Tipo de batida determinado pela sequência + horário capturado
+    auto_punch_type = (
+        _auto_punch_type(
+            collab.id if collab else None,
+            _pd_for_seq,
+            punch_time_str=data.hora or None,
+            collab=collab,
+        )
+        if _pd_for_seq
+        else "entrada"
+    )
     _TIPOS_LABEL = {
         "entrada": "Entrada",
         "intervalo_saida": "Saída para Intervalo",
@@ -2704,7 +2757,13 @@ def ponto_confirmar():
 
     # Tipo de batida: usa o form; se ausente, deriva pela sequência do dia
     if not punch_type and collab_id:
-        punch_type = _auto_punch_type(collab_id, punch_date)
+        collab_obj = db.session.get(Collaborator, collab_id)
+        punch_type = _auto_punch_type(
+            collab_id,
+            punch_date,
+            punch_time_str=hora_str or None,
+            collab=collab_obj,
+        )
 
     record = PunchRecord(
         collaborator_id=collab_id,
