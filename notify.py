@@ -330,6 +330,23 @@ def lembrete_saida(
     )
 
 
+def lembrete_retorno_intervalo_domingo(
+    collab_name: str,
+    data_str: str,
+    para: str | None = None,
+) -> None:
+    """Lembrete enviado 28min após saída de intervalo aos domingos."""
+    send(
+        f"⏰ *Hora de Voltar! — MultiMax*\n"
+        f"👤 {collab_name}\n"
+        f"📅 {data_str}\n"
+        "Seu intervalo de 30 minutos está quase no fim. "
+        "Registre seu *retorno do intervalo* agora!",
+        origin="ponto_lembrete_domingo",
+        para=para,
+    )
+
+
 def sequencia_quebrada(collab_name: str, data_str: str, detalhe: str) -> None:
     """Alerta de sequência de ponto inválida (ex: duas entradas seguidas)."""
     send(

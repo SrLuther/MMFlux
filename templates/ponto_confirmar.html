@@ -58,6 +58,16 @@
                        value="{{ data.nome }}" required>
             </div>
 
+            {% if is_collab_session %}
+            {# Colaborador logado — identidade já confirmada pelo login. CPF não é coletado. #}
+            <input type="hidden" name="collaborator_id" value="{{ collab.id }}">
+            <div class="pconf-field pconf-full">
+                <div class="pconf-match pconf-collab-box" style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:8px;padding:.6rem .9rem;display:flex;align-items:center;gap:.6rem">
+                    <span>&#128100; Registrando como <strong>{{ collab.name }}</strong></span>
+                    <span class="pconf-collab-ok">&#10003; logado</span>
+                </div>
+            </div>
+            {% else %}
             <div class="pconf-field">
                 <label for="pc-cpf">CPF</label>
                 <input id="pc-cpf" type="text" name="raw_cpf"
@@ -65,9 +75,10 @@
                        placeholder="Digite os 11 dígitos" maxlength="11"
                        pattern="\d{11}" title="Informe os 11 dígitos do CPF" required>
                 <p class="pconf-cpf-privacy">
-                    &#128274; Seu CPF <strong>não é compartilhado</strong> com ninguém. Ele serve apenas para identificar o colaborador no sistema e será criptografado assim que este ponto for confirmado.
+                    &#128274; Seu CPF <strong>não é compartilhado</strong>. É armazenado apenas como hash criptográfico irreversível para identificação.
                 </p>
             </div>
+            {% endif %}
 
             <div class="pconf-field">
                 <label for="pc-data">Data</label>
@@ -96,6 +107,7 @@
                        value="{{ data.nrep }}">
             </div>
 
+            {% if not is_collab_session %}
             <div class="pconf-field pconf-full" id="collab-field">
                 <label>Colaborador</label>
 
@@ -147,6 +159,7 @@
                     </div>
                 </div>
             </div>
+            {% endif %}
 
         </div><!-- /.pconf-grid -->
 
@@ -206,6 +219,10 @@
     </form>
 
     <script>
+    const btnConfirm = document.querySelector('.pconf-btn-confirm');
+
+    {% if not is_collab_session %}
+    // ─── Lógica de CPF e vínculo de colaborador (apenas fluxo admin) ─────
     function cpfValido(v) {
         v = v.replace(/\D/g, '');
         if (v.length !== 11 || /^(\d)\1{10}$/.test(v)) return false;
@@ -221,7 +238,6 @@
 
     const cpfInput   = document.getElementById('pc-cpf');
     const nomeInput  = document.getElementById('pc-name');
-    const btnConfirm = document.querySelector('.pconf-btn-confirm');
 
     const stFound    = document.getElementById('collab-found');
     const stPending  = document.getElementById('collab-pending');
@@ -281,7 +297,6 @@
                 idFound.value    = d.id;
                 showState('found');
             } else {
-                // Preenche select de colaboradores sem CPF
                 assocSel.innerHTML = '<option value="">— selecione —</option>';
                 if (d.sem_cpf && d.sem_cpf.length > 0) {
                     d.sem_cpf.forEach(c => {
@@ -295,7 +310,6 @@
                     assocPanel.style.display = 'none';
                     createLabel.textContent = 'Criar novo colaborador com este CPF:';
                 }
-                // pré-preenche nome no input de criação com o que o OCR leu
                 document.getElementById('create-nome').value = nomeInput.value;
                 showState('unlinked');
             }
@@ -307,7 +321,6 @@
 
     cpfInput.addEventListener('input', checkCpf);
 
-    // Associar CPF a colaborador existente
     document.getElementById('btn-assoc').addEventListener('click', async () => {
         const collabId = assocSel.value;
         if (!collabId) { alert('Selecione um colaborador.'); return; }
@@ -323,12 +336,11 @@
             nomeInput.value = d.nome;
             foundName.textContent = d.nome;
             idFound.value = d.id;
-            lastCpf = '';   // força refresh na próxima vez
+            lastCpf = '';
             showState('found');
         } catch(_) { alert('Erro de conexão.'); }
     });
 
-    // Criar novo colaborador
     document.getElementById('btn-create').addEventListener('click', async () => {
         const nome = document.getElementById('create-nome').value.trim();
         const cpf  = cpfInput.value.replace(/\D/g, '');
@@ -349,19 +361,18 @@
         } catch(_) { alert('Erro de conexão.'); }
     });
 
-    // Bloqueia submit se não houver colaborador vinculado
     document.querySelector('.pconf-form').addEventListener('submit', e => {
         if (btnConfirm.disabled) { e.preventDefault(); return; }
     });
+
+    checkCpf();
+    {% endif %}
 
     document.getElementById('pconf-retry-input').addEventListener('change', function() {
         if (this.files && this.files[0]) {
             document.getElementById('pconf-retry-form').submit();
         }
     });
-
-    // Inicializa ao carregar
-    checkCpf();
 
     // ─── Auto-sugestão de tipo de batida ───────────────────────────────────
     (function () {

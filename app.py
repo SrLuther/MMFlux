@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import calendar
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -73,6 +75,8 @@ _ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".jfif"}
 
 # Constante de jornada padrão: 7h20 = 440 minutos
 JORNADA_MIN = 440
+# Jornada de domingo: 6h20 = 380 minutos
+JORNADA_DOMINGO_MIN = 380
 
 # ---------------------------------------------------------------------------
 # Alertas agendados por horário definido pelo colaborador
@@ -113,12 +117,35 @@ def hhmm_filter(value: Any) -> str:
 
 @app.template_filter("mask_cpf")
 def mask_cpf_filter(cpf: Any) -> str:
-    """Mascara CPF para exibição pública: 00x.xxx.xxx-00."""
+    """Mascara CPF para exibição pública. Se já for hash, retorna fixo."""
     import re as _re
-    digits = _re.sub(r"\D", "", str(cpf or ""))
+    val = str(cpf or "")
+    # Valor já hashado (64 chars hex) — nunca exibir em claro
+    if len(val) == 64 and all(c in "0123456789abcdef" for c in val.lower()):
+        return "***.***.***.***"
+    digits = _re.sub(r"\D", "", val)
     if len(digits) != 11:
-        return str(cpf) if cpf else "—"
+        return val if val else "—"
     return f"{digits[0:2]}x.xxx.xxx-{digits[9:11]}"
+
+
+def _hash_cpf(cpf: str) -> str:
+    """Retorna HMAC-SHA256 do CPF usando FLUXOS_SECRET como chave.
+
+    Determinístico (permite busca por igualdade) e irreversível.
+    Resultado: 64 chars hexadecimais.
+    """
+    secret = app.config.get("SECRET_KEY", "trocar-esta-chave")
+    return hmac.new(
+        secret.encode("utf-8"),
+        cpf.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _cpf_is_hashed(value: str) -> bool:
+    """Retorna True se o valor já é um hash HMAC-SHA256 (64 chars hex)."""
+    return len(value) == 64 and all(c in "0123456789abcdef" for c in value.lower())
 
 
 class User(Base, UserMixin):
@@ -150,7 +177,7 @@ class Collaborator(Base):
     name = db.Column(db.String(120), nullable=False, index=True)
     role = db.Column(db.String(120), nullable=True)
     daily_rate = db.Column(db.Numeric(10, 2), nullable=True)
-    cpf = db.Column(db.String(20), nullable=True, index=True)
+    cpf = db.Column(db.String(64), nullable=True, index=True)
     ponto_password_hash = db.Column(db.String(255), nullable=True)
     active = db.Column(db.Boolean, nullable=False, default=True)
     folga_days = db.Column(db.Integer, nullable=False, default=0)
@@ -209,7 +236,7 @@ class PunchRecord(Base):
         nullable=True,
         index=True,
     )
-    raw_cpf = db.Column(db.String(20), nullable=False)
+    raw_cpf = db.Column(db.String(64), nullable=True)
     raw_name = db.Column(db.String(180), nullable=False)
     punch_date = db.Column(db.Date, nullable=False, index=True)
     punch_time = db.Column(db.Time, nullable=False)
@@ -414,6 +441,22 @@ def ensure_schema() -> None:
         )
         db.session.commit()
 
+    # Migracao v1.2.0 — hashear CPFs em texto plano ja armazenados
+    collabs_to_hash = [
+        c for c in Collaborator.query.all()
+        if c.cpf and not _cpf_is_hashed(c.cpf)
+    ]
+    for c in collabs_to_hash:
+        c.cpf = _hash_cpf(c.cpf)
+    punches_to_hash = [
+        p for p in PunchRecord.query.all()
+        if p.raw_cpf and len(p.raw_cpf) == 11 and not _cpf_is_hashed(p.raw_cpf)
+    ]
+    for p in punches_to_hash:
+        p.raw_cpf = _hash_cpf(p.raw_cpf)
+    if collabs_to_hash or punches_to_hash:
+        db.session.commit()
+
 
 def suggest_ponto_password(name: str) -> str:
     """Sugere senha de ponto: 1a letra maiuscula + posicoes alfabeticas ate 4-5 digitos.
@@ -592,6 +635,17 @@ def _get_schedule(collab: Any) -> list[dict]:
         return []
 
 
+def _get_domingo_schedule(collab: Any) -> dict | None:
+    """Retorna config de domingo do colaborador (chave 'domingo' no schedule_json) ou None."""
+    if not getattr(collab, "schedule_json", None):
+        return None
+    try:
+        data = json.loads(collab.schedule_json)
+        return data.get("domingo") or None
+    except Exception:
+        return None
+
+
 def _handle_schedule_alerts(
     collab: Any,
     punch_date: date,
@@ -601,6 +655,29 @@ def _handle_schedule_alerts(
     """Agenda ou cancela lembretes com base no tipo de batida registrada."""
     if not collab.whatsapp:
         return
+
+    is_domingo = punch_date.weekday() == 6
+    date_iso = punch_date.isoformat()
+
+    if is_domingo:
+        # Domingos: intervalo de 30min sem horário fixo
+        if punch_type == "intervalo_saida":
+            # Agenda alerta 28min após o registro (para lembrar de voltar)
+            key = (collab.id, date_iso, "intervalo_retorno_domingo")
+            with _pending_alerts_lock:
+                _pending_alerts[key] = {
+                    "fire_at": time.time() + 28 * 60,
+                    "whatsapp": collab.whatsapp,
+                    "collab_name": collab.name,
+                    "tipo": "intervalo_retorno_domingo",
+                    "data_str": data_str,
+                }
+        elif punch_type == "intervalo_retorno":
+            # Colaborador voltou — cancela o lembrete
+            with _pending_alerts_lock:
+                _pending_alerts.pop((collab.id, date_iso, "intervalo_retorno_domingo"), None)
+        return  # Domingos não têm horário fixo nos turnos normais
+
     turnos = _get_schedule(collab)
     if not turnos:
         return
@@ -610,8 +687,6 @@ def _handle_schedule_alerts(
     def _fire_at(hhmm: str) -> float:
         t = datetime.strptime(hhmm, "%H:%M").time()
         return datetime.combine(punch_date, t).timestamp() + GRACE
-
-    date_iso = punch_date.isoformat()
 
     if punch_type == "entrada":
         # Agenda lembrete de saída para intervalo
@@ -701,7 +776,9 @@ def _calc_ponto_indicadores(
             continue
         h_bruto_min += worked_min
         dias_processados += 1
-        normal_today = min(worked_min, JORNADA_MIN)
+        # Domingos têm jornada reduzida de 6h20
+        jornada_dia = JORNADA_DOMINGO_MIN if d.weekday() == 6 else JORNADA_MIN
+        normal_today = min(worked_min, jornada_dia)
         # Dia é folga se: domingo, feriado cadastrado, ou qualquer batida do dia marcada como folga
         dia_e_folga = (
             is_folga_ou_domingo(d)
@@ -711,8 +788,8 @@ def _calc_ponto_indicadores(
             folga_bruto_min += normal_today
         else:
             h_normais_min += normal_today
-        if worked_min > JORNADA_MIN:
-            extra_acumulado_min += worked_min - JORNADA_MIN
+        if worked_min > jornada_dia:
+            extra_acumulado_min += worked_min - jornada_dia
 
     ajustes = PontoAjuste.query.filter_by(collaborator_id=collab_id).all()
     desconto_min = sum(a.minutos for a in ajustes if a.tipo == "desconto_extra")
@@ -1607,6 +1684,7 @@ def collaborator_history(collaborator_id: int):
         .all()
     )
     sched_turnos = _get_schedule(collab)
+    sched_domingo = _get_domingo_schedule(collab)
 
     return render_template(
         "collab_history.html",
@@ -1637,6 +1715,7 @@ def collaborator_history(collaborator_id: int):
         feriados_mes=feriados_mes,
         ajustes=ajustes,
         sched_turnos=sched_turnos,
+        sched_domingo=sched_domingo,
         fmt_min=_fmt_min_hhmm,
         JORNADA_MIN=JORNADA_MIN,
         ponto_year=ponto_year,
@@ -2167,7 +2246,7 @@ def ponto_buscar_cpf():
     cpf = re.sub(r"\D", "", request.args.get("cpf", ""))
     if len(cpf) != 11:
         return jsonify({}), 200
-    collab = Collaborator.query.filter_by(cpf=cpf, active=True).first()
+    collab = Collaborator.query.filter_by(cpf=_hash_cpf(cpf), active=True).first()
     if collab:
         return jsonify({"found": True, "id": collab.id, "nome": collab.name})
     # Nao encontrado — retorna colaboradores ativos sem CPF cadastrado
@@ -2195,7 +2274,7 @@ def ponto_associar_cpf():
     collab = db.session.get(Collaborator, int(collab_id))
     if not collab:
         return jsonify({"error": "colaborador nao encontrado"}), 404
-    collab.cpf = cpf
+    collab.cpf = _hash_cpf(cpf)
     db.session.commit()
     return jsonify({"id": collab.id, "nome": collab.name}), 200
 
@@ -2209,9 +2288,9 @@ def ponto_criar_colaborador():
     cpf = re.sub(r"\D", "", data.get("cpf") or "")
     if not nome or len(cpf) != 11:
         return jsonify({"error": "nome e CPF sao obrigatorios"}), 400
-    if Collaborator.query.filter_by(cpf=cpf).first():
+    if Collaborator.query.filter_by(cpf=_hash_cpf(cpf)).first():
         return jsonify({"error": "CPF ja cadastrado"}), 409
-    collab = Collaborator(name=nome, cpf=cpf)
+    collab = Collaborator(name=nome, cpf=_hash_cpf(cpf))
     db.session.add(collab)
     db.session.commit()
     return jsonify({"id": collab.id, "nome": collab.name}), 201
@@ -2271,11 +2350,18 @@ def ponto_upload():
     if data.error:
         flash(f"⚠ OCR parcial: {data.error} Preencha ou corrija os campos abaixo.", "warning")
 
-    # Pre-seleciona colaborador pelo CPF se existir
-    cpf_clean = re.sub(r"\D", "", data.cpf or "")
-    collab = Collaborator.query.filter_by(cpf=cpf_clean).first() if cpf_clean else None
+    # Se colaborador está logado via sessão, usa o ID da sessão diretamente
+    sess_collab_id = _flask_session.get("ponto_collab_id")
+    if sess_collab_id and not current_user.is_authenticated:
+        collab = db.session.get(Collaborator, sess_collab_id)
+        cpf_clean = ""
+    else:
+        # Fluxo admin: tenta pré-selecionar colaborador pelo CPF
+        cpf_clean = re.sub(r"\D", "", data.cpf or "")
+        cpf_hash = _hash_cpf(cpf_clean) if cpf_clean else ""
+        collab = Collaborator.query.filter_by(cpf=cpf_hash).first() if cpf_hash else None
 
-    # Conta batidas nao processadas do colaborador naquele dia (se CPF encontrado)
+    # Conta batidas não processadas do colaborador naquele dia
     existing_count = 0
     if collab and data.data:
         try:
@@ -2321,6 +2407,7 @@ def ponto_upload():
         collaborators=collaborators,
         existing_count=existing_count,
         sched_turnos=sched_turnos,
+        is_collab_session=bool(sess_collab_id and not current_user.is_authenticated),
         existing_punches=[
             {"type": p.punch_type, "time": p.punch_time.strftime("%H:%M")}
             for p in existing_punches
@@ -2429,6 +2516,10 @@ def ponto_confirmar():
     origin = "admin" if current_user.is_authenticated else "automatico"
     gives_folga = bool(request.form.get("gives_folga"))
 
+    # Colaborador logado via sessão — identidade já garantida pelo login
+    sess_collab_id = _flask_session.get("ponto_collab_id")
+    is_collab_session = bool(sess_collab_id and not current_user.is_authenticated)
+
     try:
         punch_date = datetime.strptime(data_str, "%d/%m/%Y").date()
     except ValueError:
@@ -2441,7 +2532,8 @@ def ponto_confirmar():
         flash(f"Hora invalida: {hora_str}", "danger")
         return redirect(url_for("ponto"))
 
-    if not raw_cpf or len(raw_cpf) != 11:
+    # CPF só é obrigatório no fluxo admin (sem sessão de colaborador)
+    if not is_collab_session and (not raw_cpf or len(raw_cpf) != 11):
         flash("CPF obrigatorio — informe os 11 digitos do CPF antes de confirmar.", "danger")
         return redirect(url_for("ponto"))
 
@@ -2459,24 +2551,29 @@ def ponto_confirmar():
         )
         return redirect(url_for("ponto"))
 
-    # Colaborador obrigatorio
+    # Resolução do colaborador: sessão > form > CPF hasheado
     collab_id: int | None = None
-    if collab_id_raw:
+    if is_collab_session:
+        collab_id = int(sess_collab_id)  # type: ignore[arg-type]
+    elif collab_id_raw:
         try:
             collab_id = int(collab_id_raw)
         except ValueError:
             pass
-    if not collab_id and raw_cpf:
-        c = Collaborator.query.filter_by(cpf=raw_cpf).first()
+    if not collab_id and raw_cpf and len(raw_cpf) == 11:
+        c = Collaborator.query.filter_by(cpf=_hash_cpf(raw_cpf)).first()
         if c:
             collab_id = c.id
     if not collab_id:
-        flash("Nenhum colaborador vinculado ao CPF informado. Associe ou cadastre o colaborador antes de registrar.", "danger")
+        flash("Nenhum colaborador vinculado. Associe ou cadastre o colaborador antes de registrar.", "danger")
         return redirect(url_for("ponto"))
+
+    # Hashear CPF antes de gravar (ou vazio se não informado)
+    cpf_to_store = _hash_cpf(raw_cpf) if raw_cpf and len(raw_cpf) == 11 else ""
 
     record = PunchRecord(
         collaborator_id=collab_id,
-        raw_cpf=raw_cpf,
+        raw_cpf=cpf_to_store,
         raw_name=raw_name,
         punch_date=punch_date,
         punch_time=punch_time,
@@ -2498,7 +2595,7 @@ def ponto_confirmar():
     db.session.commit()
 
     collab = db.session.get(Collaborator, collab_id) if collab_id else None
-    collab_label = collab.name if collab else f"CPF {raw_cpf}"
+    collab_label = collab.name if collab else f"ID {collab_id}"
 
     if interval_msg:
         flash(
@@ -2713,7 +2810,7 @@ def admin_ponto_dia_add(collab_id: int):
 
     record = PunchRecord(
         collaborator_id=collab_id,
-        raw_cpf=collab.cpf or "00000000000",
+        raw_cpf=collab.cpf or "",
         raw_name=collab.name,
         punch_date=target_date,
         punch_time=target_time,
@@ -3112,7 +3209,27 @@ def colaborador_salvar_schedule(collab_id: int):
             if val:
                 turno[campo] = val
         turnos.append(turno)
-    collab.schedule_json = json.dumps({"turnos": turnos}, ensure_ascii=False) if turnos else None
+
+    # Horário de entrada aos domingos (mín 05:00, máx 12:20)
+    domingo_entrada = (request.form.get("domingo_entrada") or "").strip()
+    domingo_cfg: dict | None = None
+    if domingo_entrada:
+        try:
+            _t = datetime.strptime(domingo_entrada, "%H:%M").time()
+            from datetime import time as _time
+            if _t < _time(5, 0) or _t > _time(12, 20):
+                flash("Horário de domingo deve estar entre 05:00 e 12:20.", "danger")
+                return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
+            domingo_cfg = {"entrada": domingo_entrada}
+        except ValueError:
+            flash("Horário de domingo inválido.", "danger")
+            return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
+
+    schedule: dict = {"turnos": turnos}
+    if domingo_cfg:
+        schedule["domingo"] = domingo_cfg
+
+    collab.schedule_json = json.dumps(schedule, ensure_ascii=False) if (turnos or domingo_cfg) else None
     db.session.commit()
     flash("Horários salvos com sucesso.", "success")
     return redirect(url_for("colaborador_painel", collab_id=collab_id, month=month_param))
@@ -3420,13 +3537,20 @@ if __name__ == "__main__":
                     to_fire.append(_pending_alerts.pop(k))
             for alert in to_fire:
                 try:
-                    wz.lembrete_saida(
-                        alert["collab_name"],
-                        alert["data_str"],
-                        alert["expected_time"],
-                        alert["tipo"],
-                        para=alert["whatsapp"],
-                    )
+                    if alert.get("tipo") == "intervalo_retorno_domingo":
+                        wz.lembrete_retorno_intervalo_domingo(
+                            alert["collab_name"],
+                            alert["data_str"],
+                            para=alert["whatsapp"],
+                        )
+                    else:
+                        wz.lembrete_saida(
+                            alert["collab_name"],
+                            alert["data_str"],
+                            alert["expected_time"],
+                            alert["tipo"],
+                            para=alert["whatsapp"],
+                        )
                     app.logger.info(
                         "[alert] lembrete %s enviado para %s",
                         alert["tipo"], alert["collab_name"],

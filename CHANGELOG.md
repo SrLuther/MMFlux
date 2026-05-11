@@ -2,6 +2,37 @@
 
 <!-- markdownlint-disable MD024 -->
 
+## [1.2.0] - 2026-05-10
+
+### Domingos — Jornada e Escala Personalizada
+
+- feat: horário de entrada aos domingos agora é configurável por colaborador (mínimo 05:00, máximo 12:20) via painel de histórico.
+- feat: jornada diária aos domingos definida como **6h20** (380 min), em vez de 7h20.
+- feat: horas além de 6h20 aos domingos são automaticamente contabilizadas como **horas extras**.
+- feat: cálculo de indicadores (`_calc_ponto_indicadores`) usa jornada correta por dia da semana.
+
+### Domingos — Intervalo Automático
+
+- feat: intervalo de 30 minutos aos domingos é detectado automaticamente pela sequência de batidas (sem horário fixo).
+- feat: ao registrar a saída para intervalo, o sistema inicia uma contagem regressiva de 28 minutos.
+- feat: alerta WhatsApp enviado ao colaborador quando os 28 minutos expiram, lembrando de bater o retorno.
+- feat: ao registrar o retorno do intervalo, o timer é cancelado automaticamente.
+- feat: nova função `lembrete_retorno_intervalo_domingo()` em `notify.py`.
+
+### Segurança — CPF
+
+- feat: CPF armazenado como hash **HMAC-SHA256** irreversível (chave `FLUXOS_SECRET`), nunca em texto plano.
+- feat: migração automática em `ensure_schema()` — converte CPFs existentes em texto plano para hash na primeira inicialização.
+- feat: `mask_cpf` detecta hashes (64 chars hex) e exibe `***.***.***.***` sem tentar formatar como CPF.
+- feat: colunas `collaborator.cpf` e `punch_record.raw_cpf` ampliadas para `VARCHAR(64)`, `raw_cpf` agora `nullable`.
+
+### Fluxo de Ponto — Colaborador Logado
+
+- feat: colaborador autenticado via sessão não precisa informar CPF — identidade já confirmada pelo login.
+- feat: página de confirmação de ponto (`ponto_confirmar`) exibe banner "Registrando como: **{nome}** ✓ logado" para sessão de colaborador.
+- feat: campos de CPF e seleção de colaborador ocultados no template quando `is_collab_session=True`.
+- feat: JS de validação de CPF não é carregado para colaboradores logados (sem erro de `null` reference).
+
 ## [0.11.1] - 2026-05-09
 
 ### Correções de Estabilidade

@@ -143,10 +143,23 @@
                             </div>
                             {% endfor %}
                             </div>
+
+                            <!-- Horário especial de domingo -->
+                            <div style="margin-top:.75rem;padding:.75rem;border:1px dashed var(--line);border-radius:8px;background:rgba(99,102,241,.04)">
+                                <p style="font-size:.8rem;font-weight:600;margin:0 0 .5rem">&#128197; Entrada aos Domingos</p>
+                                <p style="font-size:.77rem;color:var(--muted);margin:0 0 .5rem">
+                                    Aos domingos a jornada é de 6h20 (mín). Intervalo de 30min sem horário fixo — você receberá alerta no WhatsApp 2 minutos antes de completar. Entre 05:00 e 12:20.
+                                </p>
+                                <input type="time" name="domingo_entrada"
+                                       value="{{ sched_domingo.entrada if sched_domingo else '' }}"
+                                       min="05:00" max="12:20"
+                                       style="width:100%;max-width:160px">
+                            </div>
+
                             <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
                                 <button type="button" id="btn-add-turno" class="btn" style="font-size:.82rem;background:var(--surface);color:var(--navy);border:1.5px solid var(--line)">&#43; Turno extra</button>
                                 <button type="submit" class="btn">Salvar horários</button>
-                                {% if sched_turnos %}
+                                {% if sched_turnos or sched_domingo %}
                                 <button type="submit" name="entrada_0" value="" class="btn"
                                         style="background:#dc2626;border-color:#dc2626"
                                         onclick="return confirm('Remover todos os horários?')">&#10006; Limpar</button>

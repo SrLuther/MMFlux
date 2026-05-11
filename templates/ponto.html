@@ -72,7 +72,7 @@
                     <td>{{ r.punch_date.strftime('%d/%m/%Y') }}</td>
                     <td>{{ r.punch_time.strftime('%H:%M') }}</td>
                     <td>{{ r.raw_name or '—' }}</td>
-                    <td class="mono">{{ r.raw_cpf }}</td>
+                    <td class="mono">{{ r.raw_cpf|mask_cpf }}</td>
                     <td class="mono">{{ r.nsr }}</td>
                     <td>
                         <form method="post" action="{{ url_for('ponto_vincular', record_id=r.id) }}" class="inline-form">
@@ -131,11 +131,7 @@
                         {% endif %}
                     </td>
                     <td class="mono">
-                        {% if current_user.is_authenticated %}
-                            {{ r.raw_cpf }}
-                        {% else %}
-                            {{ r.raw_cpf|mask_cpf }}
-                        {% endif %}
+                        {{ r.raw_cpf|mask_cpf }}
                     </td>
                     <td class="mono">{{ r.nsr }}</td>
                     <td>
