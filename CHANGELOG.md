@@ -2,7 +2,7 @@
 
 <!-- markdownlint-disable MD024 -->
 
-## [1.3.0] - 2026-05-10
+## [1.0.1] - 2026-05-10
 
 ### Câmera — Tela de Carregamento
 
@@ -23,7 +23,7 @@
 - feat: quadro amarelo de domingo substituído por banner full-width com borda lateral destacada, ícone ☀️ e informações completas: jornada de 6h20, horas extra e direito a folga.
 - fix: checkbox desabilitado (sem função) removido do banner — o campo oculto `gives_folga=1` permanece garantindo o valor correto no envio.
 
-## [1.2.0] - 2026-05-10
+## [1.0.0] - 2026-05-10
 
 ### Domingos — Jornada e Escala Personalizada
 
