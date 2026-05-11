@@ -2,6 +2,20 @@
 
 <!-- markdownlint-disable MD024 -->
 
+## [1.2.0] - 2026-05-11
+
+### Banco de Folgas — Rastreabilidade e Gestão pelo Admin
+
+- feat: painel do colaborador exibe seção expansível **"Ver datas de origem"** dentro do bloco Banco de Folgas, listando cada domingo/feriado trabalhado e créditos manuais que geraram o saldo.
+- feat: admin pode **Revogar** o crédito de folga de qualquer domingo ou feriado trabalhado — o dia aparece tachado e é descontado do saldo imediatamente.
+- feat: admin pode **Restaurar** um crédito anteriormente revogado com um clique.
+- feat: admin pode **Excluir** créditos manuais de folga (`HourEntry.gives_folga=True`) diretamente da lista.
+- feat: contador do resumo exibe `(N ativos · M revogados)` quando há revogações para facilitar auditoria.
+- feat: `_calc_ponto_indicadores` respeita revogações — datas revogadas não somam a `folga_bruto_min`.
+- feat: novo modelo `FolgaRevogacao` armazena datas canceladas por colaborador.
+- feat: migração automática em `ensure_schema` cria a tabela `folga_revogacao` em bases existentes.
+- feat: novas rotas admin: `POST /colaborador/<id>/folga-ponto/revogar`, `POST /colaborador/<id>/folga-ponto/restaurar`, `POST /colaborador/<id>/folga-manual/<entry_id>/excluir`.
+
 ## [1.1.0] - 2026-05-10
 
 ### Ponto — Sistema de 4 Batidas Automático
