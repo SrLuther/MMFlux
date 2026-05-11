@@ -43,6 +43,7 @@
             </div>
             <p class="cam-loading-title">Analisando comprovante</p>
             <p class="cam-loading-sub" id="cam-loading-sub">Processando imagem&#8230;</p>
+            <p class="cam-loading-pct" id="cam-loading-pct">0%</p>
             <div class="cam-loading-bar"><div class="cam-loading-bar-fill" id="cam-loading-bar-fill"></div></div>
         </div>
     </div>
@@ -502,11 +503,11 @@
 
 }
 
-/* Barra de progresso indeterminada */
+/* Barra de progresso */
 
 .cam-loading-bar {
 
-    width: 180px; height: 3px;
+    width: 180px; height: 4px;
 
     background: rgba(255,255,255,.1);
 
@@ -523,6 +524,30 @@
     border-radius: 2px;
 
     animation: bar-slide 1.4s ease-in-out infinite;
+
+}
+
+/* Quando temos porcentagem real, para a animação e mostra largura real */
+
+.cam-loading-bar-fill.determinate {
+
+    animation: none;
+
+    width: var(--pct, 0%);
+
+    background: linear-gradient(90deg, #14b8a6, #2dd4bf);
+
+    transition: width .25s ease;
+
+}
+
+.cam-loading-pct {
+
+    color: #2dd4bf; font-size: 1.15rem; font-weight: 800;
+
+    margin: -.3rem 0 0; letter-spacing: .02em;
+
+    min-height: 1.4em;
 
 }
 
@@ -728,21 +753,89 @@
 
 
 
-    /* ── Envio para modo live (blob de canvas → fetch + FormData) ── */
+    /* ── Envio para modo live (XHR com progresso real) ── */
+
+    var _procTimer = null;
 
     function submitBlob(blob) {
 
-        const fd = new FormData();
+        var fd = new FormData();
 
         fd.append('foto', blob, 'ponto.jpg');
 
-        fetch('{{ url_for("ponto_upload") }}', { method: 'POST', body: fd })
+        var xhr = new XMLHttpRequest();
 
-            .then(r => r.text())
+        xhr.open('POST', '{{ url_for("ponto_upload") }}');
 
-            .then(html => { document.open(); document.write(html); document.close(); })
+        /* Upload 0 → 40% (progresso real de envio) */
 
-            .catch(() => { hideLoading(); window.location.href = '{{ url_for("ponto") }}'; });
+        xhr.upload.onprogress = function (e) {
+
+            if (e.lengthComputable) {
+
+                setLoadingPct(Math.round((e.loaded / e.total) * 40));
+
+            }
+
+        };
+
+        /* Upload concluído → simula processamento OCR 40 → 95% */
+
+        xhr.upload.onload = function () {
+
+            setLoadingPct(40);
+
+            var target = 95;
+
+            _procTimer = setInterval(function () {
+
+                var cur = parseInt(
+
+                    document.getElementById('cam-loading-pct').textContent, 10
+
+                ) || 40;
+
+                if (cur < target) {
+
+                    /* Desacelera conforme se aproxima do limite */
+
+                    var step = Math.max(1, Math.round((target - cur) * 0.07));
+
+                    setLoadingPct(Math.min(cur + step, target));
+
+                }
+
+            }, 250);
+
+        };
+
+        /* Resposta chegou → 100% e renderiza */
+
+        xhr.onload = function () {
+
+            clearInterval(_procTimer);
+
+            setLoadingPct(100);
+
+            setTimeout(function () {
+
+                document.open(); document.write(xhr.responseText); document.close();
+
+            }, 350);
+
+        };
+
+        xhr.onerror = function () {
+
+            clearInterval(_procTimer);
+
+            hideLoading();
+
+            window.location.href = '{{ url_for("ponto") }}';
+
+        };
+
+        xhr.send(fd);
 
     }
 
@@ -758,9 +851,23 @@
     var _loadingIdx = 0;
     var _loadingTimer = null;
 
+    function setLoadingPct(pct) {
+        var fill = document.getElementById('cam-loading-bar-fill');
+        var lbl  = document.getElementById('cam-loading-pct');
+        fill.classList.add('determinate');
+        fill.style.setProperty('--pct', pct + '%');
+        lbl.textContent = pct + '%';
+    }
+
     function showLoading() {
         var overlay = document.getElementById('cam-loading-overlay');
         var sub     = document.getElementById('cam-loading-sub');
+        var fill    = document.getElementById('cam-loading-bar-fill');
+        var lbl     = document.getElementById('cam-loading-pct');
+        /* Reinicia barra para indeterminada até o XHR começar a reportar */
+        fill.classList.remove('determinate');
+        fill.style.removeProperty('--pct');
+        lbl.textContent = '0%';
         overlay.classList.add('active');
         sub.textContent = _loadingMsgs[0];
         _loadingIdx = 1;
@@ -773,6 +880,11 @@
 
     function hideLoading() {
         clearInterval(_loadingTimer);
+        clearInterval(_procTimer);
+        var fill = document.getElementById('cam-loading-bar-fill');
+        fill.classList.remove('determinate');
+        fill.style.removeProperty('--pct');
+        document.getElementById('cam-loading-pct').textContent = '0%';
         document.getElementById('cam-loading-overlay').classList.remove('active');
     }
 
