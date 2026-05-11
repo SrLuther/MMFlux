@@ -329,6 +329,26 @@ class PontoAjuste(Base):
     )
 
 
+class FolgaRevogacao(Base):
+    """Revogação de folga gerada por batida (admin pode cancelar crédito de um dia específico)."""
+
+    __tablename__ = "folga_revogacao"
+
+    id = db.Column(db.Integer, primary_key=True)
+    collaborator_id = db.Column(
+        db.Integer, db.ForeignKey("collaborator.id"), nullable=False, index=True
+    )
+    # Data cuja folga foi revogada (domingo/feriado trabalhado)
+    revoked_date = db.Column(db.Date, nullable=False)
+    obs = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    collaborator = db.relationship(
+        "Collaborator",
+        backref=db.backref("folgas_revogadas", lazy=True),
+    )
+
+
 @login_manager.user_loader
 def load_user(user_id: str) -> User | None:
     """Carrega o usuario autenticado pelo identificador salvo na sessao."""
@@ -475,6 +495,22 @@ def ensure_schema() -> None:
     for p in punches_to_hash:
         p.raw_cpf = _hash_cpf(p.raw_cpf)
     if collabs_to_hash or punches_to_hash:
+        db.session.commit()
+
+    # folga_revogacao — tabela nova em v1.2.0
+    try:
+        db.session.execute(text("SELECT 1 FROM folga_revogacao LIMIT 1"))
+    except Exception:
+        db.session.rollback()
+        db.session.execute(text(
+            "CREATE TABLE IF NOT EXISTS folga_revogacao ("
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "  collaborator_id INTEGER NOT NULL REFERENCES collaborator(id),"
+            "  revoked_date DATE NOT NULL,"
+            "  obs VARCHAR(255),"
+            "  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+            ")"
+        ))
         db.session.commit()
 
 
@@ -911,6 +947,12 @@ def _calc_ponto_indicadores(
     dias_incompletos: list[date] = []
     dias_processados = 0
 
+    # Datas com folga revogada pelo admin
+    _revogadas = {
+        r.revoked_date
+        for r in FolgaRevogacao.query.filter_by(collaborator_id=collab_id).all()
+    }
+
     for d, day_punches in sorted(days_punches.items()):
         result = _process_punches_dia(day_punches)
         if result["incompleto"]:
@@ -929,7 +971,7 @@ def _calc_ponto_indicadores(
             is_folga_ou_domingo(d)
             or any(getattr(p, "gives_folga", False) for p in day_punches)
         )
-        if dia_e_folga:
+        if dia_e_folga and d not in _revogadas:
             # Folga sempre vale 1 dia completo (JORNADA_MIN), independente
             # de a jornada do domingo ser mais curta (6h20 vs 7h20).
             folga_bruto_min += JORNADA_MIN
@@ -1846,6 +1888,10 @@ def collaborator_history(collaborator_id: int):
     )
 
     # ── Origens do banco de folgas (datas que geraram crédito) ──────────────
+    _revogadas_set = {
+        r.revoked_date
+        for r in FolgaRevogacao.query.filter_by(collaborator_id=collaborator_id).all()
+    }
     _all_proc = (
         PunchRecord.query
         .filter_by(collaborator_id=collaborator_id, processed=True)
@@ -1866,7 +1912,8 @@ def collaborator_history(collaborator_id: int):
         )
         if _e_folga:
             _lbl = "Domingo" if _d.weekday() == 6 else "Feriado"
-            folga_origem_ponto.append({"date": _d, "label": _lbl})
+            _revogado = _d in _revogadas_set
+            folga_origem_ponto.append({"date": _d, "label": _lbl, "revogado": _revogado})
 
     folga_origem_manual = (
         HourEntry.query.filter(
@@ -3334,6 +3381,86 @@ def colaborador_usar_folga_ponto(collab_id: int):
     return redirect(
         url_for("colaborador_painel", collab_id=collab_id, month=month_param)
     )
+
+
+@app.route("/colaborador/<int:collab_id>/folga-ponto/revogar", methods=["GET", "POST"])
+@login_required
+def colaborador_revogar_folga_ponto(collab_id: int):
+    """Admin: revoga o crédito de folga de um dia trabalhado (domingo/feriado)."""
+    if request.method == "GET":
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
+    if not current_user.is_authenticated:
+        flash("Acesso restrito a administradores.", "danger")
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
+
+    date_raw = (request.form.get("data_referencia") or "").strip()
+    obs = (request.form.get("obs") or "Revogado pelo admin").strip()
+
+    try:
+        data_ref = datetime.strptime(date_raw, "%Y-%m-%d").date()
+    except ValueError:
+        flash("Data inválida.", "warning")
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
+
+    # Evita duplicata
+    ja_existe = FolgaRevogacao.query.filter_by(
+        collaborator_id=collab_id, revoked_date=data_ref
+    ).first()
+    if ja_existe:
+        flash(f"Folga de {data_ref.strftime('%d/%m/%Y')} já estava revogada.", "warning")
+    else:
+        db.session.add(FolgaRevogacao(
+            collaborator_id=collab_id,
+            revoked_date=data_ref,
+            obs=obs,
+        ))
+        db.session.commit()
+        flash(f"Folga de {data_ref.strftime('%d/%m/%Y')} revogada com sucesso.", "success")
+
+    return redirect(url_for("collaborator_history", collaborator_id=collab_id))
+
+
+@app.route("/colaborador/<int:collab_id>/folga-ponto/restaurar", methods=["GET", "POST"])
+@login_required
+def colaborador_restaurar_folga_ponto(collab_id: int):
+    """Admin: restaura o crédito de folga de um dia anteriormente revogado."""
+    if request.method == "GET":
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
+    date_raw = (request.form.get("data_referencia") or "").strip()
+    try:
+        data_ref = datetime.strptime(date_raw, "%Y-%m-%d").date()
+    except ValueError:
+        flash("Data inválida.", "warning")
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
+
+    rev = FolgaRevogacao.query.filter_by(
+        collaborator_id=collab_id, revoked_date=data_ref
+    ).first()
+    if rev:
+        db.session.delete(rev)
+        db.session.commit()
+        flash(f"Folga de {data_ref.strftime('%d/%m/%Y')} restaurada.", "success")
+    else:
+        flash("Revogação não encontrada.", "warning")
+
+    return redirect(url_for("collaborator_history", collaborator_id=collab_id))
+
+
+@app.route("/colaborador/<int:collab_id>/folga-manual/<int:entry_id>/excluir", methods=["GET", "POST"])
+@login_required
+def colaborador_excluir_folga_manual(collab_id: int, entry_id: int):
+    """Admin: remove um crédito manual de folga (HourEntry.gives_folga=True)."""
+    if request.method == "GET":
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
+    entry = db.session.get(HourEntry, entry_id)
+    if not entry or entry.collaborator_id != collab_id or not entry.gives_folga:
+        flash("Lançamento não encontrado.", "warning")
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id))
+
+    db.session.delete(entry)
+    db.session.commit()
+    flash("Crédito manual de folga removido.", "success")
+    return redirect(url_for("collaborator_history", collaborator_id=collab_id))
 
 
 @app.route("/colaborador/<int:collab_id>/whatsapp", methods=["GET", "POST"])

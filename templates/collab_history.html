@@ -448,25 +448,51 @@
                 <small class="saldo-sub">{{ fmt_min(ind_total.folga_bruto_saldo_min) }}h</small>
             </div>
         </div>
-        {% set total_origens = folga_origem_ponto|length + folga_origem_manual|length %}
-        {% if total_origens > 0 %}
+        {% set total_origens = (folga_origem_ponto | selectattr('revogado', 'equalto', false) | list | length) + folga_origem_manual|length %}
+        {% set total_todos = folga_origem_ponto|length + folga_origem_manual|length %}
+        {% if total_todos > 0 %}
         <details style="margin-top:.65rem">
             <summary style="font-size:.82rem;cursor:pointer;color:var(--teal);font-weight:600">
-                &#128197; Ver datas de origem ({{ total_origens }} dia{{ 's' if total_origens != 1 else '' }})
+                &#128197; Ver datas de origem ({{ total_origens }} dia{{ 's' if total_origens != 1 else '' }}{% if total_origens != total_todos %} · <span style="color:#9ca3af;font-weight:400">{{ total_todos - total_origens }} revogado{{ 's' if (total_todos - total_origens) != 1 else '' }}</span>{% endif %})
             </summary>
             <ul style="margin:.5rem 0 0 .25rem;padding:0;list-style:none;font-size:.82rem">
                 {% for o in folga_origem_ponto %}
-                <li style="padding:.25rem .5rem;border-left:3px solid var(--teal);margin-bottom:.3rem;background:rgba(16,185,129,.06);border-radius:0 6px 6px 0">
-                    <strong>{{ o.date.strftime('%d/%m/%Y') }}</strong>
-                    <span style="color:var(--muted);margin-left:.4rem">— {{ o.label }}</span>
-                    <span style="float:right;font-size:.78rem;color:var(--teal)">+1d folga</span>
+                <li style="padding:.25rem .5rem;border-left:3px solid {% if o.revogado %}#9ca3af{% else %}var(--teal){% endif %};margin-bottom:.3rem;background:{% if o.revogado %}rgba(156,163,175,.08){% else %}rgba(16,185,129,.06){% endif %};border-radius:0 6px 6px 0;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+                    <span style="flex:1;min-width:0">
+                        <strong {% if o.revogado %}style="text-decoration:line-through;color:var(--muted)"{% endif %}>{{ o.date.strftime('%d/%m/%Y') }}</strong>
+                        <span style="color:var(--muted);margin-left:.4rem">— {{ o.label }}</span>
+                    </span>
+                    {% if o.revogado %}
+                    <span style="font-size:.75rem;color:#9ca3af;font-style:italic">revogado</span>
+                    {% if current_user.is_authenticated %}
+                    <form method="post" action="{{ url_for('colaborador_restaurar_folga_ponto', collab_id=collab.id) }}" style="margin:0">
+                        <input type="hidden" name="data_referencia" value="{{ o.date.strftime('%Y-%m-%d') }}">
+                        <button type="submit" style="font-size:.72rem;padding:.1rem .4rem;border:1px solid var(--teal);border-radius:4px;background:transparent;color:var(--teal);cursor:pointer" title="Restaurar crédito">&#8635; Restaurar</button>
+                    </form>
+                    {% endif %}
+                    {% else %}
+                    <span style="font-size:.78rem;color:var(--teal)">+1d folga</span>
+                    {% if current_user.is_authenticated %}
+                    <form method="post" action="{{ url_for('colaborador_revogar_folga_ponto', collab_id=collab.id) }}" style="margin:0" onsubmit="return confirm('Revogar crédito de folga de {{ o.date.strftime('%d/%m/%Y') }}?')">
+                        <input type="hidden" name="data_referencia" value="{{ o.date.strftime('%Y-%m-%d') }}">
+                        <button type="submit" style="font-size:.72rem;padding:.1rem .4rem;border:1px solid #f87171;border-radius:4px;background:transparent;color:#f87171;cursor:pointer" title="Revogar folga">&#10005; Revogar</button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
                 </li>
                 {% endfor %}
                 {% for e in folga_origem_manual %}
-                <li style="padding:.25rem .5rem;border-left:3px solid #a78bfa;margin-bottom:.3rem;background:rgba(167,139,250,.07);border-radius:0 6px 6px 0">
-                    <strong>{{ e.entry_date.strftime('%d/%m/%Y') }}</strong>
-                    <span style="color:var(--muted);margin-left:.4rem">— Crédito manual{% if e.note %}: {{ e.note }}{% endif %}</span>
-                    <span style="float:right;font-size:.78rem;color:#a78bfa">+1d folga</span>
+                <li style="padding:.25rem .5rem;border-left:3px solid #a78bfa;margin-bottom:.3rem;background:rgba(167,139,250,.07);border-radius:0 6px 6px 0;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+                    <span style="flex:1;min-width:0">
+                        <strong>{{ e.entry_date.strftime('%d/%m/%Y') }}</strong>
+                        <span style="color:var(--muted);margin-left:.4rem">— Crédito manual{% if e.note %}: {{ e.note }}{% endif %}</span>
+                    </span>
+                    <span style="font-size:.78rem;color:#a78bfa">+1d folga</span>
+                    {% if current_user.is_authenticated %}
+                    <form method="post" action="{{ url_for('colaborador_excluir_folga_manual', collab_id=collab.id, entry_id=e.id) }}" style="margin:0" onsubmit="return confirm('Excluir crédito manual de folga de {{ e.entry_date.strftime('%d/%m/%Y') }}?')">
+                        <button type="submit" style="font-size:.72rem;padding:.1rem .4rem;border:1px solid #f87171;border-radius:4px;background:transparent;color:#f87171;cursor:pointer" title="Excluir crédito">&#10005; Excluir</button>
+                    </form>
+                    {% endif %}
                 </li>
                 {% endfor %}
             </ul>
