@@ -79,6 +79,26 @@ JORNADA_MIN = 440
 JORNADA_DOMINGO_MIN = 380
 
 # ---------------------------------------------------------------------------
+# Turnos predefinidos da empresa
+# ---------------------------------------------------------------------------
+# Seg–Sáb: 3 opções de turno com 30min de intervalo (horário livre)
+TURNOS_PADRAO = [
+    # Turno A — entrada 05h
+    {"entrada": "05:00", "saida_intervalo": "10:00", "volta_intervalo": "10:30", "saida_final": "14:20"},
+    # Turno B — entrada 08h
+    {"entrada": "08:00", "saida_intervalo": "12:00", "volta_intervalo": "12:30", "saida_final": "17:20"},
+    # Turno C — entrada 10h
+    {"entrada": "10:00", "saida_intervalo": "13:00", "volta_intervalo": "13:30", "saida_final": "19:20"},
+]
+# Domingo: 2 opções (jornada 6h20, intervalo 30min livre)
+TURNOS_DOMINGO_PADRAO = [
+    {"entrada": "05:00", "saida_final": "12:20"},
+    {"entrada": "06:00", "saida_final": "12:20"},
+]
+# Sequência fixa de tipos por ordem de batida no dia
+_PUNCH_SEQUENCE = ["entrada", "intervalo_saida", "intervalo_retorno", "saida_final"]
+
+# ---------------------------------------------------------------------------
 # Alertas agendados por horário definido pelo colaborador
 # ---------------------------------------------------------------------------
 # Chave: (collab_id, date_iso, punch_type_esperado)
@@ -646,7 +666,87 @@ def _get_domingo_schedule(collab: Any) -> dict | None:
         return None
 
 
-def _handle_schedule_alerts(
+def _auto_detect_schedule(collab: Any) -> None:
+    """Detecta automaticamente o turno do colaborador pelo histórico e salva em schedule_json.
+
+    Usa as primeiras batidas de cada dia (últimos 60 dias) para calcular a hora
+    média de entrada e associar ao turno pré-definido mais próximo.
+    Só sobrescreve se o schedule atual for auto-detectado (flag '_auto': True)
+    ou se não houver schedule de turnos definido ainda.
+    Nunca sobrescreve configuração manual (sem flag '_auto').
+    """
+    try:
+        sched: dict = json.loads(collab.schedule_json) if collab.schedule_json else {}
+    except Exception:
+        sched = {}
+
+    # Não sobrescrever schedule manual
+    if sched.get("turnos") and not sched.get("_auto"):
+        return
+
+    cutoff = date.today() - timedelta(days=60)
+    # Primeira batida de cada dia nos últimos 60 dias (seg–sáb)
+    rows = (
+        db.session.query(
+            PunchRecord.punch_date,
+            db.func.min(PunchRecord.punch_time).label("first_time"),
+        )
+        .filter(
+            PunchRecord.collaborator_id == collab.id,
+            PunchRecord.punch_date >= cutoff,
+        )
+        .group_by(PunchRecord.punch_date)
+        .all()
+    )
+    # Filtra domingos no Python (evita dependência de dialeto SQL)
+    weekday_rows = [r for r in rows if r.punch_date.weekday() != 6]
+    sunday_rows  = [r for r in rows if r.punch_date.weekday() == 6]
+
+    changed = False
+
+    # ── Turno seg–sáb ──────────────────────────────────────────────────────
+    if len(weekday_rows) >= 3:
+        avg_min = sum(r.first_time.hour * 60 + r.first_time.minute for r in weekday_rows) // len(weekday_rows)
+        best = min(
+            TURNOS_PADRAO,
+            key=lambda t: abs(int(t["entrada"].split(":")[0]) * 60 + int(t["entrada"].split(":")[1]) - avg_min),
+        )
+        sched["turnos"] = [best]
+        sched["_auto"] = True
+        changed = True
+
+    # ── Turno domingo ───────────────────────────────────────────────────────
+    if sunday_rows and "domingo" not in sched:
+        avg_dom = sum(r.first_time.hour * 60 + r.first_time.minute for r in sunday_rows) // len(sunday_rows)
+        best_dom = min(
+            TURNOS_DOMINGO_PADRAO,
+            key=lambda t: abs(int(t["entrada"].split(":")[0]) * 60 + int(t["entrada"].split(":")[1]) - avg_dom),
+        )
+        sched["domingo"] = {"entrada": best_dom["entrada"], "_auto": True}
+        changed = True
+
+    if changed:
+        collab.schedule_json = json.dumps(sched)
+        db.session.commit()
+
+
+def _auto_punch_type(collab_id: int | None, punch_date: date) -> str:
+    """Retorna o tipo de batida esperado pela sequência do dia.
+
+    Conta quantas batidas o colaborador já tem no dia e retorna o próximo tipo:
+    0 → entrada | 1 → intervalo_saida | 2 → intervalo_retorno | 3 → saida_final | 4+ → extra
+    """
+    if not collab_id:
+        return "entrada"
+    count = PunchRecord.query.filter_by(
+        collaborator_id=collab_id,
+        punch_date=punch_date,
+    ).count()
+    if count < len(_PUNCH_SEQUENCE):
+        return _PUNCH_SEQUENCE[count]
+    return "extra"
+
+
     collab: Any,
     punch_date: date,
     punch_type: str | None,
@@ -2381,22 +2481,45 @@ def ponto_upload():
         .all()
     )
 
-    # Turnos do colaborador para sugestão automática de tipo de batida
+    # Turnos do colaborador — auto-detecta pelo histórico se ainda não configurado
+    if collab:
+        _auto_detect_schedule(collab)
     sched_turnos = _get_schedule(collab) if collab else []
 
     # Batidas já registradas no dia (para saber qual tipo vem a seguir)
     existing_punches: list[PunchRecord] = []
+    is_domingo = False
+    _pd_for_seq: date | None = None
     if collab and data.data:
         try:
-            _pd = datetime.strptime(data.data, "%d/%m/%Y").date()
+            _pd_for_seq = datetime.strptime(data.data, "%d/%m/%Y").date()
+            is_domingo = _pd_for_seq.weekday() == 6
             existing_punches = (
                 PunchRecord.query
-                .filter_by(collaborator_id=collab.id, punch_date=_pd)
+                .filter_by(collaborator_id=collab.id, punch_date=_pd_for_seq)
                 .order_by(PunchRecord.punch_time.asc())
                 .all()
             )
         except ValueError:
             pass
+    elif data.data:
+        try:
+            _d = datetime.strptime(data.data, "%d/%m/%Y").date()
+            _pd_for_seq = _d
+            is_domingo = _d.weekday() == 6
+        except ValueError:
+            pass
+
+    # Tipo de batida determinado pela sequência do dia (sem depender de escala)
+    auto_punch_type = _auto_punch_type(collab.id if collab else None, _pd_for_seq) if _pd_for_seq else "entrada"
+    _TIPOS_LABEL = {
+        "entrada": "Entrada",
+        "intervalo_saida": "Saída para Intervalo",
+        "intervalo_retorno": "Retorno do Intervalo",
+        "saida_final": "Saída Final",
+        "extra": "Turno Extra",
+    }
+    auto_punch_label = _TIPOS_LABEL.get(auto_punch_type, auto_punch_type)
 
     return render_template(
         "ponto_confirmar.html",
@@ -2408,6 +2531,9 @@ def ponto_upload():
         existing_count=existing_count,
         sched_turnos=sched_turnos,
         is_collab_session=bool(sess_collab_id and not current_user.is_authenticated),
+        is_domingo=is_domingo,
+        auto_punch_type=auto_punch_type,
+        auto_punch_label=auto_punch_label,
         existing_punches=[
             {"type": p.punch_type, "time": p.punch_time.strftime("%H:%M")}
             for p in existing_punches
@@ -2532,6 +2658,10 @@ def ponto_confirmar():
         flash(f"Hora invalida: {hora_str}", "danger")
         return redirect(url_for("ponto"))
 
+    # Domingo (weekday==6) sempre dá direito a folga — sobrescreve checkbox
+    if punch_date.weekday() == 6:
+        gives_folga = True
+
     # CPF só é obrigatório no fluxo admin (sem sessão de colaborador)
     if not is_collab_session and (not raw_cpf or len(raw_cpf) != 11):
         flash("CPF obrigatorio — informe os 11 digitos do CPF antes de confirmar.", "danger")
@@ -2570,6 +2700,10 @@ def ponto_confirmar():
 
     # Hashear CPF antes de gravar (ou vazio se não informado)
     cpf_to_store = _hash_cpf(raw_cpf) if raw_cpf and len(raw_cpf) == 11 else ""
+
+    # Tipo de batida: usa o form; se ausente, deriva pela sequência do dia
+    if not punch_type and collab_id:
+        punch_type = _auto_punch_type(collab_id, punch_date)
 
     record = PunchRecord(
         collaborator_id=collab_id,

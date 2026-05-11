@@ -163,37 +163,65 @@
 
         </div><!-- /.pconf-grid -->
 
-        <!-- Tipo de batida (Bloco 2) -->
+        <!-- Tipo de batida (Bloco 2) — definido automaticamente pela sequência do dia -->
         <div class="pconf-field pconf-full" style="margin-top:.5rem">
-            <label for="pc-tipo">Tipo de Batida</label>
-            <select id="pc-tipo" name="punch_type">
-                <option value="">— Não informado (legado) —</option>
-                <option value="entrada">&#9654; Entrada</option>
-                <option value="intervalo_saida">&#9654; Saída para Intervalo</option>
-                <option value="intervalo_retorno">&#9654; Retorno do Intervalo</option>
-                <option value="saida_final">&#9654; Saída Final</option>
-                <option value="extra">&#9654; Turno Extra</option>
-            </select>
+            <label>Tipo de Batida</label>
 
-            <!-- Indicador de sugestão automática -->
-            <div id="pc-tipo-hint" style="display:none;margin-top:.4rem;padding:.5rem .75rem;border-radius:6px;font-size:.82rem;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);color:#10b981">
-                <span id="pc-tipo-hint-text"></span>
+            {# Badge de auto-detecção #}
+            <div id="pconf-tipo-badge" style="display:flex;align-items:center;gap:.75rem;padding:.55rem .9rem;border-radius:8px;background:rgba(16,185,129,.09);border:1px solid rgba(16,185,129,.3)">
+                <span style="font-weight:600;color:var(--teal)">
+                    {% if auto_punch_type == "entrada" %}&#9654;
+                    {% elif auto_punch_type == "intervalo_saida" %}&#9654;
+                    {% elif auto_punch_type == "intervalo_retorno" %}&#9654;
+                    {% elif auto_punch_type == "saida_final" %}&#9632;
+                    {% else %}&#9654;
+                    {% endif %}
+                    {{ auto_punch_label }}
+                </span>
+                <span style="font-size:.78rem;opacity:.6">detectado automaticamente</span>
+                <button type="button" id="pconf-tipo-override-btn"
+                        style="margin-left:auto;font-size:.75rem;background:none;border:none;color:var(--muted);cursor:pointer;text-decoration:underline;padding:0">
+                    corrigir
+                </button>
             </div>
 
-            <!-- Hint quando não há horário definido -->
+            {# Input oculto com o valor auto-detectado (enviado pelo form) #}
+            <input type="hidden" name="punch_type" id="pconf-punch-type-hidden" value="{{ auto_punch_type }}">
+
+            {# Dropdown de correção — oculto por padrão #}
+            <div id="pconf-tipo-override" style="display:none;margin-top:.5rem">
+                <select id="pc-tipo" style="width:100%"
+                        onchange="document.getElementById('pconf-punch-type-hidden').value = this.value">
+                    <option value="entrada"           {% if auto_punch_type=='entrada'           %}selected{% endif %}>&#9654; Entrada</option>
+                    <option value="intervalo_saida"   {% if auto_punch_type=='intervalo_saida'   %}selected{% endif %}>&#9654; Saída para Intervalo</option>
+                    <option value="intervalo_retorno" {% if auto_punch_type=='intervalo_retorno' %}selected{% endif %}>&#9654; Retorno do Intervalo</option>
+                    <option value="saida_final"       {% if auto_punch_type=='saida_final'       %}selected{% endif %}>&#9632; Saída Final</option>
+                    <option value="extra"             {% if auto_punch_type=='extra'             %}selected{% endif %}>&#9654; Turno Extra</option>
+                </select>
+            </div>
+
             {% if not sched_turnos %}
-            <p class="pconf-muted-hint">
-                &#8505; Tipo não detectado automaticamente. Você pode informar manualmente acima
-                ou <a href="{{ url_for('collaborator_history', collaborator_id=collab.id) if collab else '#' }}" style="color:var(--teal)">definir seus horários de trabalho</a> para sugestão automática nas próximas batidas. (Opcional — não obrigatório para concluir o registro.)
+            <p class="pconf-muted-hint" style="margin-top:.4rem">
+                &#8505; Sem escala definida — tipo baseado na sequência do dia.
+                <a href="{{ url_for('collaborator_history', collaborator_id=collab.id) if collab else '#' }}" style="color:var(--teal)">Configurar horários</a> para sugestões mais precisas.
             </p>
             {% endif %}
         </div>
 
         <div class="pconf-folga-opt">
+            {% if is_domingo %}
+            <div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);border-radius:8px">
+                <input type="checkbox" name="gives_folga" value="1" checked disabled style="accent-color:var(--teal)">
+                <span>&#127774; <strong>Domingo</strong> — dá direito a folga <span style="font-size:.8rem;opacity:.7">(definido automaticamente)</span></span>
+            </div>
+            {# campo oculto garante que gives_folga=1 seja enviado mesmo com checkbox disabled #}
+            <input type="hidden" name="gives_folga" value="1">
+            {% else %}
             <label class="pconf-folga-label">
                 <input type="checkbox" name="gives_folga" value="1">
                 <span>&#127774; Este registro dá direito a folga</span>
             </label>
+            {% endif %}
         </div>
 
         <div class="pconf-actions">
@@ -374,96 +402,13 @@
         }
     });
 
-    // ─── Auto-sugestão de tipo de batida ───────────────────────────────────
-    (function () {
-        var horaInput  = document.getElementById('pc-hora');
-        var tipoSelect = document.getElementById('pc-tipo');
-        var hintBox    = document.getElementById('pc-tipo-hint');
-        var hintText   = document.getElementById('pc-tipo-hint-text');
-
-        // Schedule e batidas existentes injetados pelo servidor
-        var schedTurnos     = {{ sched_turnos | tojson }};
-        var existingPunches = {{ existing_punches | tojson }};
-        var TOLERANCE_MIN   = 30; // tolerância de ±30 minutos
-
-        function toMinutes(hhmm) {
-            if (!hhmm) return null;
-            var parts = hhmm.split(':');
-            return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
-        }
-
-        function closestType(currentMin) {
-            if (!schedTurnos || !schedTurnos.length) return null;
-            var turno = schedTurnos[0];
-
-            // Conjunto de tipos já registrados no dia
-            var done = {};
-            existingPunches.forEach(function (p) { if (p.type) done[p.type] = true; });
-
-            var candidates = [
-                { type: 'entrada',           time: turno.entrada },
-                { type: 'intervalo_saida',   time: turno.saida_intervalo },
-                { type: 'intervalo_retorno', time: turno.volta_intervalo },
-                { type: 'saida_final',       time: turno.saida_final },
-            ];
-
-            var best = null;
-            var bestDiff = Infinity;
-            candidates.forEach(function (c) {
-                if (!c.time || done[c.type]) return;
-                var diff = Math.abs(toMinutes(c.time) - currentMin);
-                if (diff <= TOLERANCE_MIN && diff < bestDiff) {
-                    bestDiff = diff;
-                    best = c;
-                }
-            });
-
-            return best;
-        }
-
-        var LABELS = {
-            'entrada':           'Entrada',
-            'intervalo_saida':   'Saída para Intervalo',
-            'intervalo_retorno': 'Retorno do Intervalo',
-            'saida_final':       'Saída Final',
-        };
-
-        function updateSuggestion() {
-            if (!schedTurnos || !schedTurnos.length) return;
-            var hora = horaInput.value.trim();
-            if (!hora || !/^\d{1,2}:\d{2}$/.test(hora)) {
-                hintBox.style.display = 'none';
-                return;
-            }
-            var currentMin = toMinutes(hora);
-            var match = closestType(currentMin);
-            if (match) {
-                // Só define automaticamente se o usuário ainda não escolheu
-                if (!tipoSelect.dataset.userChanged) {
-                    tipoSelect.value = match.type;
-                }
-                var turno = schedTurnos[0];
-                var expected = match.time;
-                var diff = toMinutes(hora) - toMinutes(expected);
-                var diffAbs = Math.abs(diff);
-                var diffLabel = diffAbs === 0 ? 'exatamente no horário'
-                    : (diffAbs + 'min ' + (diff > 0 ? 'após' : 'antes') + ' do esperado (' + expected + ')');
-                hintText.textContent = '✓ Sugestão automática: ' + LABELS[match.type] + ' — ' + diffLabel + '.';
-                hintBox.style.display = '';
-            } else {
-                hintBox.style.display = 'none';
-            }
-        }
-
-        horaInput.addEventListener('input', updateSuggestion);
-        tipoSelect.addEventListener('change', function () {
-            tipoSelect.dataset.userChanged = '1';
-            hintBox.style.display = 'none';
-        });
-
-        // Roda na carga inicial
-        updateSuggestion();
-    })();
+    // ─── Override de tipo de batida ────────────────────────────────────────
+    document.getElementById('pconf-tipo-override-btn').addEventListener('click', function () {
+        var panel = document.getElementById('pconf-tipo-override');
+        var isHidden = panel.style.display === 'none';
+        panel.style.display = isHidden ? '' : 'none';
+        this.textContent = isHidden ? 'ocultar' : 'corrigir';
+    });
     </script>
 
     {% if data.raw_text %}

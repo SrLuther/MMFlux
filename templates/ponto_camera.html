@@ -32,6 +32,21 @@
 
 
 
+    <!-- Overlay de carregamento (compartilhado entre modos) -->
+    <div id="cam-loading-overlay">
+        <div class="cam-loading-box">
+            <div class="cam-loading-receipt">
+                <div class="cam-loading-scan-line"></div>
+                <div class="cam-loading-receipt-lines">
+                    <span></span><span></span><span></span><span></span><span></span>
+                </div>
+            </div>
+            <p class="cam-loading-title">Analisando comprovante</p>
+            <p class="cam-loading-sub" id="cam-loading-sub">Processando imagem&#8230;</p>
+            <div class="cam-loading-bar"><div class="cam-loading-bar-fill" id="cam-loading-bar-fill"></div></div>
+        </div>
+    </div>
+
     <!-- ══════════════════════════════════════════════════
 
          MODO A: câmera ao vivo (HTTPS / localhost)
@@ -68,13 +83,10 @@
 
             <div class="cam-msg" id="cam-msg">Aponte para o comprovante e pressione Capturar</div>
 
-        </div>
-
-
-
-        <div class="cam-controls">
-
-            <button class="btn cam-btn-primary" id="btn-cap-now">&#128247; Capturar agora</button>
+            <!-- Botão dentro do viewport para ficar acessível no celular -->
+            <div class="cam-capture-btn-wrap">
+                <button class="btn cam-btn-primary" id="btn-cap-now">&#128247; Capturar</button>
+            </div>
 
         </div>
 
@@ -320,25 +332,207 @@
 
 
 
-/* ── Controles ── */
+/* ── Botão de captura dentro do viewport ── */
 
-.cam-controls { width: 100%; display: flex; justify-content: center; }
+.cam-capture-btn-wrap {
+
+    position: absolute;
+
+    bottom: 1.1rem;
+
+    left: 0; right: 0;
+
+    display: flex;
+
+    justify-content: center;
+
+    z-index: 10;
+
+}
 
 .cam-btn-primary {
 
     background: var(--teal); color: #fff; border: none;
 
-    padding: .7rem 2rem; font-size: 1rem; font-weight: 700;
+    padding: .75rem 2.2rem; font-size: 1.05rem; font-weight: 700;
 
-    border-radius: var(--radius); cursor: pointer;
+    border-radius: 2rem; cursor: pointer;
 
-    transition: background .15s, transform .1s;
+    box-shadow: 0 4px 18px rgba(0,0,0,.45);
+
+    transition: background .15s, transform .1s, box-shadow .15s;
 
 }
 
-.cam-btn-primary:hover { background: var(--teal-dark); }
+.cam-btn-primary:hover  { background: var(--teal-dark); }
 
-.cam-btn-primary:active { transform: scale(.97); }
+.cam-btn-primary:active { transform: scale(.96); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+
+.cam-btn-primary:disabled { opacity: .55; cursor: default; }
+
+
+
+/* ── Overlay de carregamento ── */
+
+#cam-loading-overlay {
+
+    display: none;
+
+    position: fixed; inset: 0; z-index: 9999;
+
+    background: rgba(10,14,26,.92);
+
+    backdrop-filter: blur(6px);
+
+    align-items: center; justify-content: center;
+
+    flex-direction: column;
+
+}
+
+#cam-loading-overlay.active { display: flex; }
+
+.cam-loading-box {
+
+    display: flex; flex-direction: column; align-items: center;
+
+    gap: 1.1rem; padding: 2rem 2.5rem;
+
+    background: rgba(255,255,255,.05);
+
+    border: 1px solid rgba(255,255,255,.1);
+
+    border-radius: 1.25rem;
+
+    box-shadow: 0 8px 40px rgba(0,0,0,.5);
+
+    min-width: 240px;
+
+}
+
+/* Ícone de comprovante animado */
+
+.cam-loading-receipt {
+
+    position: relative;
+
+    width: 72px; height: 90px;
+
+    background: rgba(255,255,255,.08);
+
+    border-radius: 6px;
+
+    overflow: hidden;
+
+    border: 1.5px solid rgba(255,255,255,.15);
+
+}
+
+.cam-loading-receipt-lines {
+
+    display: flex; flex-direction: column;
+
+    gap: 9px; padding: 12px 10px;
+
+}
+
+.cam-loading-receipt-lines span {
+
+    display: block; height: 5px; border-radius: 3px;
+
+    background: rgba(255,255,255,.18);
+
+}
+
+.cam-loading-receipt-lines span:nth-child(1) { width: 85%; }
+
+.cam-loading-receipt-lines span:nth-child(2) { width: 65%; }
+
+.cam-loading-receipt-lines span:nth-child(3) { width: 90%; }
+
+.cam-loading-receipt-lines span:nth-child(4) { width: 50%; }
+
+.cam-loading-receipt-lines span:nth-child(5) { width: 75%; }
+
+/* Linha de scan que sobe e desce */
+
+.cam-loading-scan-line {
+
+    position: absolute;
+
+    left: 0; right: 0; height: 2px;
+
+    background: linear-gradient(90deg, transparent, #2dd4bf, transparent);
+
+    box-shadow: 0 0 8px 2px rgba(45,212,191,.6);
+
+    animation: scan-sweep 1.6s ease-in-out infinite;
+
+}
+
+@keyframes scan-sweep {
+
+    0%   { top: 0; opacity: 1; }
+
+    48%  { top: calc(100% - 2px); opacity: 1; }
+
+    50%  { opacity: 0; }
+
+    52%  { top: 0; opacity: 0; }
+
+    54%  { opacity: 1; }
+
+    100% { top: 0; opacity: 1; }
+
+}
+
+.cam-loading-title {
+
+    color: #fff; font-size: 1rem; font-weight: 700; margin: 0;
+
+    letter-spacing: .02em;
+
+}
+
+.cam-loading-sub {
+
+    color: rgba(255,255,255,.55); font-size: .82rem; margin: 0;
+
+    min-height: 1.2em;
+
+}
+
+/* Barra de progresso indeterminada */
+
+.cam-loading-bar {
+
+    width: 180px; height: 3px;
+
+    background: rgba(255,255,255,.1);
+
+    border-radius: 2px; overflow: hidden;
+
+}
+
+.cam-loading-bar-fill {
+
+    height: 100%; width: 40%;
+
+    background: linear-gradient(90deg, transparent, #2dd4bf, transparent);
+
+    border-radius: 2px;
+
+    animation: bar-slide 1.4s ease-in-out infinite;
+
+}
+
+@keyframes bar-slide {
+
+    0%   { transform: translateX(-200%); }
+
+    100% { transform: translateX(550%); }
+
+}
 
 
 
@@ -480,7 +674,7 @@
 
             btnCap.disabled = true;
 
-            btnCap.textContent = 'Processando…';
+            showLoading();
 
             canvas.toBlob(blob => submitBlob(blob), 'image/jpeg', 0.95);
 
@@ -520,9 +714,7 @@
 
             if (!inp.files || !inp.files[0]) return;
 
-            card.querySelectorAll('.native-icon,.native-title,.native-desc,.native-btn').forEach(el => el.style.opacity = '.3');
-
-            spinner.style.display = 'flex';
+            showLoading();
 
             subtitle.textContent = 'Processando OCR…';
 
@@ -550,8 +742,38 @@
 
             .then(html => { document.open(); document.write(html); document.close(); })
 
-            .catch(() => { window.location.href = '{{ url_for("ponto") }}'; });
+            .catch(() => { hideLoading(); window.location.href = '{{ url_for("ponto") }}'; });
 
+    }
+
+    /* ── Overlay de carregamento ── */
+
+    var _loadingMsgs = [
+        'Lendo o comprovante…',
+        'Reconhecendo campos…',
+        'Extraindo data e hora…',
+        'Identificando NSR…',
+        'Quase pronto…',
+    ];
+    var _loadingIdx = 0;
+    var _loadingTimer = null;
+
+    function showLoading() {
+        var overlay = document.getElementById('cam-loading-overlay');
+        var sub     = document.getElementById('cam-loading-sub');
+        overlay.classList.add('active');
+        sub.textContent = _loadingMsgs[0];
+        _loadingIdx = 1;
+        _loadingTimer = setInterval(function () {
+            if (_loadingIdx < _loadingMsgs.length) {
+                sub.textContent = _loadingMsgs[_loadingIdx++];
+            }
+        }, 1800);
+    }
+
+    function hideLoading() {
+        clearInterval(_loadingTimer);
+        document.getElementById('cam-loading-overlay').classList.remove('active');
     }
 
 })();
