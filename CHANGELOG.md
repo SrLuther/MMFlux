@@ -2,7 +2,7 @@
 
 <!-- markdownlint-disable MD024 -->
 
-## [Unreleased]
+## [1.3.0] - 2026-05-10
 
 ### Câmera — Tela de Carregamento
 
