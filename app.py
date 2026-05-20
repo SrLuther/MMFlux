@@ -349,6 +349,23 @@ class FolgaRevogacao(Base):
     )
 
 
+class MonthlyMeta(Base):
+    """Meta mensal de horas configurável pelo admin (substitui o cálculo automático)."""
+
+    __tablename__ = "monthly_meta"
+
+    id = db.Column(db.Integer, primary_key=True)
+    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False)
+    # Meta em minutos (ex: 440 * dias_uteis)
+    meta_min = db.Column(db.Integer, nullable=False)
+    obs = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint("year", "month", name="uq_monthly_meta_ym"),
+    )
+
+
 @login_manager.user_loader
 def load_user(user_id: str) -> User | None:
     """Carrega o usuario autenticado pelo identificador salvo na sessao."""
@@ -509,6 +526,24 @@ def ensure_schema() -> None:
             "  revoked_date DATE NOT NULL,"
             "  obs VARCHAR(255),"
             "  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+            ")"
+        ))
+        db.session.commit()
+
+    # monthly_meta — tabela nova em v1.3.0
+    try:
+        db.session.execute(text("SELECT 1 FROM monthly_meta LIMIT 1"))
+    except Exception:
+        db.session.rollback()
+        db.session.execute(text(
+            "CREATE TABLE IF NOT EXISTS monthly_meta ("
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "  year INTEGER NOT NULL,"
+            "  month INTEGER NOT NULL,"
+            "  meta_min INTEGER NOT NULL,"
+            "  obs VARCHAR(255),"
+            "  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+            "  UNIQUE(year, month)"
             ")"
         ))
         db.session.commit()
@@ -1050,6 +1085,18 @@ def _calc_meta_semanal(iso_year: int, iso_week: int) -> int:
         if not is_feriado(d):
             meta_min += JORNADA_MIN
     return meta_min
+
+
+def _get_meta_mensal(year: int, month: int) -> int:
+    """Retorna a meta mensal em minutos.
+
+    Se o admin definiu um valor personalizado para o mês, usa esse valor.
+    Caso contrário, calcula automaticamente pelos dias úteis (seg-sab sem feriados).
+    """
+    custom = MonthlyMeta.query.filter_by(year=year, month=month).first()
+    if custom:
+        return custom.meta_min
+    return _calc_meta_mensal(year, month)
 
 
 def monthly_summary(
@@ -1596,12 +1643,7 @@ def use_folga(collaborator_id: int):
         flash("Colaborador nao encontrado.", "danger")
         return redirect(url_for("index"))
 
-    if collab.folga_days < 1:
-        flash(f"{collab.name} nao possui dias de folga disponíveis.", "warning")
-        from_history = request.form.get("_from_history")
-        if from_history:
-            return redirect(url_for("collaborator_history", collaborator_id=collaborator_id))
-        return redirect(url_for("index"))
+    sem_saldo = collab.folga_days < 1
 
     date_raw = (request.form.get("folga_date") or "").strip()
     try:
@@ -1628,11 +1670,18 @@ def use_folga(collaborator_id: int):
     ))
     collab.folga_days -= 1
     db.session.commit()
-    flash(
-        f"Folga descontada de {collab.name}. "
-        f"Saldo restante: {collab.folga_days} dia(s).",
-        "success",
-    )
+    if sem_saldo:
+        flash(
+            f"Folga registrada para {collab.name} sem saldo disponível. "
+            f"7:20h descontadas das horas. Saldo atual: {collab.folga_days} dia(s).",
+            "warning",
+        )
+    else:
+        flash(
+            f"Folga descontada de {collab.name}. "
+            f"Saldo restante: {collab.folga_days} dia(s).",
+            "success",
+        )
     from_history = request.form.get("_from_history")
     if from_history:
         return redirect(url_for("collaborator_history", collaborator_id=collaborator_id))
@@ -1679,6 +1728,54 @@ def grant_folga(collaborator_id: int):
         "success",
     )
     return redirect(url_for("collaborator_history", collaborator_id=collaborator_id))
+
+
+@app.route("/admin/meta-mensal", methods=["GET", "POST"])
+@login_required
+def admin_set_meta_mensal():
+    """Define (ou atualiza) a meta mensal de horas para um mês específico."""
+    if request.method == "GET":
+        return redirect(url_for("index"))
+
+    year_raw = (request.form.get("meta_year") or "").strip()
+    month_raw = (request.form.get("meta_month") or "").strip()
+    meta_raw = (request.form.get("meta_hhmm") or "").strip().replace(",", ".")
+    from_history = request.form.get("_from_history")
+    collab_id = request.form.get("collab_id")
+
+    try:
+        year = int(year_raw)
+        month = int(month_raw)
+        if not (1 <= month <= 12):
+            raise ValueError
+        if ":" in meta_raw:
+            h_str, m_str = meta_raw.split(":", 1)
+            meta_min = int(h_str) * 60 + int(m_str)
+        else:
+            meta_min = round(float(meta_raw) * 60)
+        if meta_min <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        flash("Valor de meta inválido. Use o formato H:MM (ex: 176:00) ou horas decimais.", "warning")
+        if from_history and collab_id:
+            return redirect(url_for("collaborator_history", collaborator_id=int(collab_id),
+                                    month=f"{year_raw}-{int(month_raw):02d}"))
+        return redirect(url_for("index"))
+
+    existing = MonthlyMeta.query.filter_by(year=year, month=month).first()
+    if existing:
+        existing.meta_min = meta_min
+    else:
+        db.session.add(MonthlyMeta(year=year, month=month, meta_min=meta_min))
+    db.session.commit()
+    flash(
+        f"Meta de {_MESES_PT[month]}/{year} definida: {_fmt_min_hhmm(meta_min)}h.",
+        "success",
+    )
+    if from_history and collab_id:
+        return redirect(url_for("collaborator_history", collaborator_id=int(collab_id),
+                                month=f"{year}-{month:02d}"))
+    return redirect(url_for("index"))
 
 
 @app.get("/collaborators/<int:collaborator_id>/history")
@@ -1820,47 +1917,24 @@ def collaborator_history(collaborator_id: int):
     ind_mes   = _calc_ponto_indicadores(collaborator_id, ponto_year, ponto_month)
     ind_total = _calc_ponto_indicadores(collaborator_id)
 
-    # Meta e faltantes da semana selecionada (seg-sab, excluindo feriados)
-    if week_data.get("wk_key"):
-        _wk_iso_year, _wk_iso_week = week_data["wk_key"]
-        meta_semana_min = _calc_meta_semanal(_wk_iso_year, _wk_iso_week)
-        _wk_monday   = date.fromisocalendar(_wk_iso_year, _wk_iso_week, 1)
-        _wk_saturday = date.fromisocalendar(_wk_iso_year, _wk_iso_week, 6)
-        _wk_punches = (
-            PunchRecord.query
-            .filter(
-                PunchRecord.collaborator_id == collaborator_id,
-                PunchRecord.punch_date >= _wk_monday,
-                PunchRecord.punch_date <= _wk_saturday,
-            )
-            .order_by(PunchRecord.punch_date.asc(), PunchRecord.punch_time.asc())
-            .all()
-        )
-        _wk_days: dict[date, list] = {}
-        for _p in _wk_punches:
-            _wk_days.setdefault(_p.punch_date, []).append(_p)
-        _wk_worked_min = 0
-        for _wd, _wdp in _wk_days.items():
-            _wr = _process_punches_dia(_wdp)
-            if not _wr["incompleto"]:
-                _wk_worked_min += min(_wr["minutos"], JORNADA_MIN)
-        # Folgas usadas na semana em dias úteis reduzem a meta efetiva
-        _wk_folgas = PontoAjuste.query.filter(
-            PontoAjuste.collaborator_id == collaborator_id,
-            PontoAjuste.tipo == "uso_folga",
-            PontoAjuste.data_referencia >= _wk_monday,
-            PontoAjuste.data_referencia <= _wk_saturday,
-        ).all()
-        _wk_folgas_uteis_min = sum(
-            JORNADA_MIN for a in _wk_folgas
-            if a.data_referencia and not is_folga_ou_domingo(a.data_referencia)
-        )
-        # Folgas na semana reduzem a própria meta (não apenas os faltantes)
-        meta_semana_min = max(0, meta_semana_min - _wk_folgas_uteis_min)
-        faltantes_semana_min = max(0, meta_semana_min - _wk_worked_min)
-    else:
-        meta_semana_min = 0
-        faltantes_semana_min = 0
+    # Meta e faltantes do mês selecionado
+    meta_mes_min = _get_meta_mensal(ponto_year, ponto_month)
+    _ms_f = date(ponto_year, ponto_month, 1)
+    _me_f = date(ponto_year + 1, 1, 1) if ponto_month == 12 else date(ponto_year, ponto_month + 1, 1)
+    _folgas_mes = PontoAjuste.query.filter(
+        PontoAjuste.collaborator_id == collaborator_id,
+        PontoAjuste.tipo == "uso_folga",
+        PontoAjuste.data_referencia >= _ms_f,
+        PontoAjuste.data_referencia < _me_f,
+    ).all()
+    _folgas_mes_uteis_min = sum(
+        JORNADA_MIN for a in _folgas_mes
+        if a.data_referencia and not is_folga_ou_domingo(a.data_referencia)
+    )
+    _h_cumprido_mes = ind_mes["h_normais_min"] + ind_mes["folga_bruto_min"]
+    faltantes_mes_min = max(0, meta_mes_min - _h_cumprido_mes - _folgas_mes_uteis_min)
+    # Meta personalizada do mês (para exibir no form do admin)
+    monthly_meta_atual = MonthlyMeta.query.filter_by(year=ponto_year, month=ponto_month).first()
 
     _ms = date(ponto_year, ponto_month, 1)
     _me = date(ponto_year + 1, 1, 1) if ponto_month == 12 else date(ponto_year, ponto_month + 1, 1)
@@ -1949,8 +2023,9 @@ def collaborator_history(collaborator_id: int):
         # ponto indicators
         ind_mes=ind_mes,
         ind_total=ind_total,
-        meta_semana_min=meta_semana_min,
-        faltantes_semana_min=faltantes_semana_min,
+        meta_mes_min=meta_mes_min,
+        faltantes_mes_min=faltantes_mes_min,
+        monthly_meta_atual=monthly_meta_atual,
         feriados_mes=feriados_mes,
         ajustes=ajustes,
         sched_turnos=sched_turnos,
@@ -3623,7 +3698,7 @@ def api_ponto_indicadores(collab_id: int):
 
     year, month = _parse_month_param(request.args.get("month"))
     ind = _calc_ponto_indicadores(collab_id, year, month)
-    meta_min = _calc_meta_mensal(year, month)
+    meta_min = _get_meta_mensal(year, month)
     h_cumprido = ind["h_normais_min"] + ind["folga_bruto_min"]
 
     _api_ms = date(year, month, 1)

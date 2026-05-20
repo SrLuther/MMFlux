@@ -2,6 +2,25 @@
 
 <!-- markdownlint-disable MD024 -->
 
+## [1.3.0] - 2026-05-20
+
+### Folgas — Admin pode registrar sem saldo disponível
+
+- feat: admin pode registrar uso de folga mesmo quando o colaborador não possui saldo (`folga_days = 0`); nesse caso, 7h20 são descontadas normalmente das horas e o saldo fica negativo (rastreando o "débito").
+- feat: ao registrar folga sem saldo, mensagem de aviso diferenciada é exibida com saldo atual (negativo).
+- feat: seção "Usar Folga" no menu de ações do histórico agora sempre visível para admin — quando sem saldo, exibe badge vermelho "sem saldo — desconto forçado".
+
+### Meta — Mensal e Configurável por Mês
+
+- feat: indicadores de ponto substituem **Meta da Semana** por **Meta do Mês** — valor calculado sobre todos os dias úteis (seg-sáb, excluindo feriados) do mês selecionado.
+- feat: admin pode definir uma **meta personalizada** para qualquer mês via formulário "📅 Meta Mensal" no menu de ações do histórico (campo H:MM, ex: `176:00`).
+- feat: nova rota `POST /admin/meta-mensal` persiste a meta no banco; se já existir entrada para o mês, atualiza o valor.
+- feat: novo modelo `MonthlyMeta` armazena metas personalizadas por `(year, month)` com constraint único.
+- feat: migração automática em `ensure_schema` cria a tabela `monthly_meta` em bases existentes.
+- feat: helper `_get_meta_mensal(year, month)` usa valor personalizado quando disponível, ou calcula automaticamente pelos dias úteis do mês.
+- feat: API `GET /api/ponto/indicadores/<id>` também usa `_get_meta_mensal` para os campos `meta_mensal` e `faltantes`.
+- feat: faltantes do mês calculados como `max(0, meta - h_normais - folga_bruto - folgas_usadas_em_dias_úteis)`.
+
 ## [1.2.0] - 2026-05-11
 
 ### Banco de Folgas — Rastreabilidade e Gestão pelo Admin

@@ -27,10 +27,14 @@
                         <button class="btn" type="submit">Salvar colaborador</button>
                     </form>
                 </div>
-                {% if collab.folga_days > 0 %}
+                {% if current_user.is_authenticated or collab.folga_days > 0 %}
                 <div class="hist-action-sep"></div>
                 <div class="hist-action-section">
+                    {% if collab.folga_days > 0 %}
                     <p class="hist-action-label">&#127774; Usar Folga <span class="folga-badge">{{ collab.folga_days }}d disponív{% if collab.folga_days == 1 %}el{% else %}eis{% endif %}</span></p>
+                    {% else %}
+                    <p class="hist-action-label">&#127774; Usar Folga <span class="folga-badge" style="background:var(--danger,#dc3545)">sem saldo — desconto forçado</span></p>
+                    {% endif %}
                     <form class="hist-action-form" method="post"
                           action="{{ url_for('use_folga', collaborator_id=collab.id) }}"
                           onsubmit="return confirm('Descontar 1 dia de folga de {{ collab.name }}?')">
@@ -42,7 +46,7 @@
                         </button>
                     </form>
                 </div>
-                {% endif %}{# folga_days > 0 #}
+                {% endif %}{# admin or folga_days > 0 #}
                 <div class="hist-action-sep"></div>
                 <div class="hist-action-section">
                     <p class="hist-action-label">&#43; Conceder Folga Manual</p>
@@ -54,10 +58,25 @@
                         <button class="btn btn-grant-folga" type="submit">&#43; Conceder</button>
                     </form>
                 </div>
+                <div class="hist-action-sep"></div>
+                <div class="hist-action-section">
+                    <p class="hist-action-label">&#128197; Meta Mensal — {{ sel_month_label }}</p>
+                    <form class="hist-action-form" method="post"
+                          action="{{ url_for('admin_set_meta_mensal') }}"
+                          onsubmit="return confirm('Definir meta de {{ sel_month_label }}?')">
+                        <input type="hidden" name="meta_year" value="{{ ponto_year }}">
+                        <input type="hidden" name="meta_month" value="{{ ponto_month }}">
+                        <input type="hidden" name="_from_history" value="1">
+                        <input type="hidden" name="collab_id" value="{{ collab.id }}">
+                        <label style="font-size:.8rem">Meta em H:MM (atual: {{ fmt_min(meta_mes_min) }})</label>
+                        <input type="text" name="meta_hhmm"
+                               value="{% if monthly_meta_atual %}{{ fmt_min(monthly_meta_atual.meta_min) }}{% endif %}"
+                               placeholder="Ex: 176:00" required>
+                        <button class="btn" type="submit">Salvar meta</button>
+                    </form>
+                </div>
                 {% endif %}
                 <div class="hist-action-sep"></div>
-
-                {% if is_own_profile %}
                 <!-- Desconto de Horas Extras -->
                 <details class="hist-action-details">
                     <summary>&#8987; Solicitar Desconto de Horas Extras</summary>
@@ -330,13 +349,13 @@
         </div>
 
         <div class="metric metric-neutral">
-            <span>Meta da Semana</span>
-            <strong>{{ fmt_min(meta_semana_min) }}</strong>
+            <span>Meta do Mês</span>
+            <strong>{{ fmt_min(meta_mes_min) }}</strong>
         </div>
 
-        <div class="metric {% if faltantes_semana_min > 0 %}metric-sub{% else %}metric-neutral{% endif %}">
+        <div class="metric {% if faltantes_mes_min > 0 %}metric-sub{% else %}metric-neutral{% endif %}">
             <span>Faltantes</span>
-            <strong>{{ fmt_min(faltantes_semana_min) if faltantes_semana_min > 0 else '✓ Meta' }}</strong>
+            <strong>{{ fmt_min(faltantes_mes_min) if faltantes_mes_min > 0 else '&#10003; Meta' }}</strong>
         </div>
 
         <div class="metric metric-neutral">
