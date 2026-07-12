@@ -182,7 +182,11 @@
                       action="{{ url_for('use_folga', collaborator_id=item.collab_id) }}"
                       onsubmit="return confirm('Descontar 1 dia de folga de {{ item.name }}?')">
                     <input type="date" name="folga_date" value="{{ totals.month_start }}" required>
-                    <input type="text" name="note" placeholder="Obs (opcional)" value="Folga utilizada">
+                    <select name="folga_tipo" required style="font-size:.85rem">
+                        <option value="folga">Folga</option>
+                        <option value="habilit">Habilit</option>
+                    </select>
+                    <input type="text" name="note" placeholder="Obs (opcional)" value="">
                     <button class="btn btn-folga" type="submit">&#127774; Usar Folga</button>
                 </form>
                 {% endif %}

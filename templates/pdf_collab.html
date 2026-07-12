@@ -216,7 +216,7 @@
 
   <!-- Capa -->
   <div class="cover">
-    <p class="cover-tag">Controle de Horas · MultiMax · {{ month_name }} {{ year }}</p>
+    <p class="cover-tag">Cartão Ponto · MultiMax · {{ month_name }} {{ year }}</p>
     <h1>{{ collab.name }}</h1>
     {% if collab.role %}<p class="cover-role">{{ collab.role }}</p>{% endif %}
     <p class="cover-sub">multimax.tec.br · gerado em {{ "%02d/%02d/%04d"|format(now.day, now.month, now.year) if now is defined else month_name + " " + year|string }}</p>
@@ -232,32 +232,32 @@
     <span class="page-footer-pagenum"></span>
   </div>
 
-  <!-- Métricas -->
+  <!-- Métricas Cartão Ponto -->
   <div class="totals">
     <div class="total-card">
-      <div class="label">H Bruto</div>
-      <div class="value">{{ positive|hhmm }}</div>
+      <div class="label">CH P</div>
+      <div class="value">{{ fmt_min(ind.chp_min) if ind is defined else positive|hhmm }}</div>
+    </div>
+    <div class="total-card highlight">
+      <div class="label">Norm</div>
+      <div class="value">{{ fmt_min(ind.h_normais_min) if ind is defined else '—' }}</div>
     </div>
     <div class="total-card">
-      <div class="label">H Descontos</div>
-      <div class="value">{% if negative > 0 %}{{ negative|hhmm }}{% else %}—{% endif %}</div>
+      <div class="label">Faltas</div>
+      <div class="value">{% if ind is defined and ind.faltas_min > 0 %}{{ fmt_min(ind.faltas_min) }}{% else %}—{% endif %}</div>
     </div>
     <div class="total-card">
-      <div class="label">H Líquido</div>
-      <div class="value">{{ net|hhmm }}</div>
+      <div class="label">Ex50%</div>
+      <div class="value">{% if ind is defined and ind.ex50_min > 0 %}{{ fmt_min(ind.ex50_min) }}{% else %}—{% endif %}</div>
     </div>
     <div class="total-card">
-      <div class="label">Dias Completos</div>
-      <div class="value">{{ days }}d</div>
+      <div class="label">Ex-Fa</div>
+      <div class="value">{% if ind is defined %}{{ fmt_min(ind.ex_fa_min) }}{% else %}—{% endif %}</div>
     </div>
     {% if daily_rate > 0 %}
     <div class="total-card">
       <div class="label">Diária</div>
       <div class="value" style="font-size:11pt">R$&nbsp;{{ "%.2f"|format(daily_rate|float)|replace(".",",") }}</div>
-    </div>
-    <div class="total-card highlight">
-      <div class="label">Valor Est.</div>
-      <div class="value" style="font-size:11pt">R$&nbsp;{{ "%.2f"|format(total_value|float)|replace(".",",") }}</div>
     </div>
     {% endif %}
   </div>

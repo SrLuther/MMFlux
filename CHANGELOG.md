@@ -2,6 +2,25 @@
 
 <!-- markdownlint-disable MD024 -->
 
+## [1.4.0] - 2026-07-12
+
+### Ponto — Lógica alinhada ao Cartão Ponto oficial (AlecSoft)
+
+- feat: indicadores passam a usar **CH P / Norm / Faltas / Ex50% / Ex-Fa** (Portaria 671), com tolerância diária de **10 minutos** e jornada **7h20** inclusive aos domingos.
+- feat: trabalhar 1 domingo ou 1 feriado concede **1 dia de folga** no banco.
+- feat: distinção **Folga** (não entra no CHP) vs **Habilit** (uso de folga para habilitação = Falta 7h20 no cartão).
+- feat: seletor Folga/Habilit nos formulários de uso de folga (admin, histórico e painel do colaborador).
+- fix: exclusão de batida/lançamento de ponto reprocessa o dia; intervalos 0h (batida duplicada) não geram HourEntry; rejeição de batida no mesmo horário.
+- fix: banner e textos de domingo atualizados de 6h20 para 7h20; painel legado alinhado às métricas CLT.
+
+## [1.3.16] - 2026-05-20
+
+### Performance — Itens/Kits com Treeview nativo + painel master-detail
+
+- perf: lista de Itens e Kits no editor do CustomShop agora usa `ttk.Treeview` nativo (C-extensão Tk) + painel de edição único — navegação instantânea entre centenas de registros sem recriação de widgets.
+- perf: lista de Mods paginada (`_MODS_PAGE = 20`) com navegação Anterior/Próximo, evitando renderização de todos os mods de uma vez.
+- fix: processo updater desvinculado do Job Object do Windows (`CREATE_BREAKAWAY_FROM_JOB`) — encerrar o app principal não interrompe mais o updater em execução.
+
 ## [1.3.0] - 2026-05-20
 
 ### Folgas — Admin pode registrar sem saldo disponível

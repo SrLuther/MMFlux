@@ -40,7 +40,11 @@
                           onsubmit="return confirm('Descontar 1 dia de folga de {{ collab.name }}?')">
                         <input type="hidden" name="_from_history" value="{{ collab.id }}">
                         <input type="date" name="folga_date" value="{{ today }}" required>
-                        <input type="text" name="note" value="Folga utilizada" placeholder="Obs">
+                        <select name="folga_tipo" required style="font-size:.85rem">
+                            <option value="folga">Folga (não entra no CHP)</option>
+                            <option value="habilit">Habilit (falta 7h20 — habilitação)</option>
+                        </select>
+                        <input type="text" name="note" value="" placeholder="Obs (opcional)">
                         <button class="btn btn-folga" type="submit">
                             &#127774; Usar Folga
                         </button>
@@ -110,7 +114,12 @@
                             <input type="hidden" name="month" value="{{ '%s-%02d'|format(ponto_year, ponto_month) }}">
                             <label style="font-size:.8rem">Data da folga utilizada</label>
                             <input type="date" name="data_referencia" value="{{ today }}" required>
-                            <input type="text" name="obs" value="Folga utilizada">
+                            <label style="font-size:.8rem">Tipo</label>
+                            <select name="folga_tipo" required style="font-size:.85rem">
+                                <option value="folga">Folga (não entra no CHP)</option>
+                                <option value="habilit">Habilit (falta 7h20 — habilitação)</option>
+                            </select>
+                            <input type="text" name="obs" value="" placeholder="Obs (opcional)">
                             <button class="btn" type="submit">Registrar Folga</button>
                         </form>
                         {% else %}
@@ -169,7 +178,7 @@
                             <div style="margin-top:.75rem;padding:.75rem;border:1px dashed var(--line);border-radius:8px;background:rgba(99,102,241,.04)">
                                 <p style="font-size:.8rem;font-weight:600;margin:0 0 .5rem">&#128197; Entrada aos Domingos</p>
                                 <p style="font-size:.77rem;color:var(--muted);margin:0 0 .5rem">
-                                    Aos domingos a jornada é de 6h20 (mín). Intervalo de 30min sem horário fixo — você receberá alerta no WhatsApp 2 minutos antes de completar. Entre 05:00 e 12:20.
+                                    Aos domingos a jornada é de 7h20 (igual ao Cartão Ponto). Intervalo de 30min sem horário fixo — você receberá alerta no WhatsApp 2 minutos antes de completar. Entre 05:00 e 12:20.
                                 </p>
                                 <input type="time" name="domingo_entrada"
                                        value="{{ sched_domingo.entrada if sched_domingo else '' }}"
@@ -317,47 +326,45 @@
     </div>
     {% endif %}
 
-    <!-- Indicadores do mês (Regra da Cisão) -->
+    <!-- Indicadores do mês (Cartão Ponto oficial) -->
     <div class="hero-metrics">
 
-        <div class="metric metric-add">
-            <span>H Bruto</span>
-            <strong>{{ fmt_min(ind_mes.h_bruto_min) }}</strong>
+        <div class="metric metric-neutral">
+            <span>CH P</span>
+            <strong>{{ fmt_min(ind_mes.chp_min) }}</strong>
         </div>
 
-        <div class="metric metric-neutral">
-            <span>H Normais</span>
+        <div class="metric metric-add">
+            <span>Norm</span>
             <strong>{{ fmt_min(ind_mes.h_normais_min) }}</strong>
         </div>
 
+        <div class="metric {% if ind_mes.faltas_min > 0 %}metric-sub{% else %}metric-neutral{% endif %}">
+            <span>Faltas</span>
+            <strong>{{ fmt_min(ind_mes.faltas_min) if ind_mes.faltas_min > 0 else '—' }}</strong>
+        </div>
+
+        <div class="metric {% if ind_mes.ex50_min > 0 %}metric-value{% else %}metric-neutral{% endif %}">
+            <span>Ex50%</span>
+            <strong>{{ fmt_min(ind_mes.ex50_min) if ind_mes.ex50_min > 0 else '—' }}</strong>
+            {% if ind_mes.r_extra_valor > 0 %}
+            <small style="font-size:.72rem;color:rgba(255,255,255,.6)">
+                R$ {{ '{:,.2f}'.format(ind_mes.r_extra_valor)|replace(',','X')|replace('.',',')|replace('X','.') }}
+            </small>
+            {% endif %}
+        </div>
+
+        <div class="metric {% if ind_mes.ex_fa_min < 0 %}metric-sub{% elif ind_mes.ex_fa_min > 0 %}metric-add{% else %}metric-neutral{% endif %}">
+            <span>Ex-Fa</span>
+            <strong>{{ fmt_min(ind_mes.ex_fa_min) }}</strong>
+        </div>
+
         <div class="metric metric-neutral">
-            <span>Folga Bruta</span>
+            <span>Folga (crédito)</span>
             <strong>{{ fmt_min(ind_mes.folga_bruto_min) }}</strong>
             <small style="font-size:.72rem;color:rgba(255,255,255,.6)">
-                ≈ {{ '%.1f'|format(ind_mes.folga_bruto_min / JORNADA_MIN) }}d
+                ≈ {{ '%.1f'|format(ind_mes.folga_bruto_min / JORNADA_MIN) }}d · domingo/feriado
             </small>
-        </div>
-
-        <div class="metric {% if ind_mes.extra_saldo_min > 0 %}metric-value{% endif %}">
-            <span>R$ Extra (mês)</span>
-            <strong>
-                {% if ind_mes.r_extra_valor > 0 %}
-                R$ {{ '{:,.2f}'.format(ind_mes.r_extra_valor)|replace(',','X')|replace('.',',')|replace('X','.') }}
-                {% else %}—{% endif %}
-            </strong>
-            <small style="font-size:.72rem;color:rgba(255,255,255,.6)">
-                {{ fmt_min(ind_mes.extra_saldo_min) }}h extras
-            </small>
-        </div>
-
-        <div class="metric metric-neutral">
-            <span>Meta do Mês</span>
-            <strong>{{ fmt_min(meta_mes_min) }}</strong>
-        </div>
-
-        <div class="metric {% if faltantes_mes_min > 0 %}metric-sub{% else %}metric-neutral{% endif %}">
-            <span>Faltantes</span>
-            <strong>{{ fmt_min(faltantes_mes_min) if faltantes_mes_min > 0 else '&#10003; Meta' }}</strong>
         </div>
 
         <div class="metric metric-neutral">
@@ -694,12 +701,12 @@
 
             <p style="font-size:.88rem;font-weight:700;margin:.75rem 0 .35rem">&#128200; O que cada campo do painel significa</p>
 
-            <p><strong>H Bruto:</strong> Total de horas registradas no mês, sem nenhum desconto.</p>
-            <p><strong>H Normais:</strong> Horas que contam como jornada regular — acumula até 7:20h por dia (segunda a sábado, exceto feriados e domingos). Domingos não entram nessa contagem pois geram direito a folga, não horas normais.</p>
-            <p><strong>Folga Bruta:</strong> Horas trabalhadas em domingos ou feriados (até 7:20h por dia) que viraram banco de folgas.</p>
-            <p><strong>R$ Extra (mês):</strong> Valor em reais gerado pelas horas <em>além</em> de 7:20h em qualquer dia do mês atual.</p>
-            <p><strong>Meta da Semana:</strong> Total de horas que você deveria cumprir na semana exibida (dias úteis de seg a sáb, exceto feriados e domingos, × 7:20h).</p>
-            <p><strong>Faltantes:</strong> Diferença entre a meta e o que já foi cumprido. Quando zerado, aparece <em>✓ Meta atingida</em>.</p>
+            <p><strong>CH P:</strong> Carga horária prevista do mês (7h20 por dia contado, inclusive domingo trabalhado).</p>
+            <p><strong>Norm:</strong> Horas normais creditadas, com tolerância de 10 minutos por dia.</p>
+            <p><strong>Faltas:</strong> Déficit além da tolerância + dias <em>Habilit</em> (folga usada para habilitação, conta 7h20 de falta).</p>
+            <p><strong>Ex50%:</strong> Horas extras além da jornada + tolerância.</p>
+            <p><strong>Ex-Fa:</strong> Saldo Ex50% − Faltas (positivo = crédito; negativo = débito).</p>
+            <p><strong>Folga:</strong> Trabalhar 1 domingo ou 1 feriado concede direito a 1 dia de folga. Folga usada (sem ser Habilit) não entra no CHP.</p>
             <p><strong>Jornadas Incompletas:</strong> Dias com entrada registrada mas sem saída fechada — ficam suspensos no cálculo até serem corrigidos.</p>
 
             <p style="font-size:.88rem;font-weight:700;margin:.75rem 0 .35rem">&#9201; Saldos Acumulados (total histórico)</p>

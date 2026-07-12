@@ -73,10 +73,12 @@ DB_PATH = os.path.join(DB_DIR, "fluxos_zero.db")
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "ponto")
 _ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".jfif"}
 
-# Constante de jornada padrão: 7h20 = 440 minutos
+# Constante de jornada padrão: 7h20 = 440 minutos (também usada aos domingos no CHP)
 JORNADA_MIN = 440
-# Jornada de domingo: 6h20 = 380 minutos
+# Jornada de domingo (legado): mantida por compatibilidade; indicadores/CHP usam JORNADA_MIN (7h20)
 JORNADA_DOMINGO_MIN = 380
+# Tolerância diária alinhada ao Cartão Ponto oficial (AlecSoft / Portaria 671)
+TOLERANCIA_PONTO_MIN = 10
 
 # ---------------------------------------------------------------------------
 # Turnos predefinidos da empresa
@@ -90,10 +92,10 @@ TURNOS_PADRAO = [
     # Turno C — entrada 10h
     {"entrada": "10:00", "saida_intervalo": "13:00", "volta_intervalo": "13:30", "saida_final": "19:20"},
 ]
-# Domingo: 2 opções (jornada 6h20, intervalo 30min livre)
+# Domingo: 2 opções (jornada 7h20 no Cartão Ponto; intervalo 30min livre)
 TURNOS_DOMINGO_PADRAO = [
     {"entrada": "05:00", "saida_final": "12:20"},
-    {"entrada": "06:00", "saida_final": "12:20"},
+    {"entrada": "06:00", "saida_final": "13:20"},
 ]
 # Sequência fixa de tipos por ordem de batida no dia
 _PUNCH_SEQUENCE = ["entrada", "intervalo_saida", "intervalo_retorno", "saida_final"]
@@ -836,8 +838,8 @@ def _auto_punch_type(
                     sdom = _get_domingo_schedule(collab)
                     if sdom and sdom.get("entrada"):
                         eh, em = map(int, sdom["entrada"].split(":"))
-                        # Domingo: jornada de 6h20 após a entrada
-                        saida_min = eh * 60 + em + 380  # 6×60+20
+                        # Domingo: jornada de 7h20 após a entrada (Cartão Ponto)
+                        saida_min = eh * 60 + em + JORNADA_MIN
                 else:
                     turnos = _get_schedule(collab)
                     if turnos and isinstance(turnos, list):
@@ -945,15 +947,33 @@ def _handle_schedule_alerts(
             _pending_alerts.pop((collab.id, date_iso, "saida_final"), None)
 
 
+def _is_habilit_note(note: str | None) -> bool:
+    """Habilit = uso de folga para resolver habilitação (conta como Falta no cartão)."""
+    return "habilit" in (note or "").lower()
+
+
+def _split_jornada_tolerancia(worked_min: int, jornada: int = JORNADA_MIN) -> tuple[int, int, int]:
+    """Aplica tolerância de 10 min. Retorna (norm, falta, extra)."""
+    delta = worked_min - jornada
+    if abs(delta) <= TOLERANCIA_PONTO_MIN:
+        return jornada, 0, 0
+    if delta < 0:
+        return worked_min, -delta, 0
+    return jornada, 0, delta
+
+
 def _calc_ponto_indicadores(
     collab_id: int,
     year: int | None = None,
     month: int | None = None,
 ) -> dict:
-    """Calcula indicadores dinâmicos de ponto — Regra da Cisão.
+    """Indicadores no formato Cartão Ponto oficial (AlecSoft / Portaria 671).
 
-    Se year/month forem None, calcula sobre TODOS os registros (saldo acumulado).
-    Retorna dict com todos os indicadores necessários para o painel.
+    CHP / Norm / Faltas / Ex50% / Ex-Fa, com tolerância de 10 min e jornada 7h20
+    inclusive aos domingos. Trabalhar domingo ou feriado concede 1 dia de folga.
+
+    - Folga (uso do banco): não entra no CHP.
+    - Habilit (uso do banco p/ habilitação): entra no CHP como Falta 7h20.
     """
     if year is not None and month is not None:
         month_start: date | None = date(year, month, 1)
@@ -975,14 +995,16 @@ def _calc_ponto_indicadores(
     for p in punches:
         days_punches.setdefault(p.punch_date, []).append(p)
 
+    chp_min = 0
     h_normais_min = 0
-    folga_bruto_min = 0
+    faltas_min = 0
     extra_acumulado_min = 0
     h_bruto_min = 0
+    folga_bruto_min = 0
     dias_incompletos: list[date] = []
     dias_processados = 0
+    dias_trabalhados: set[date] = set()
 
-    # Datas com folga revogada pelo admin
     _revogadas = {
         r.revoked_date
         for r in FolgaRevogacao.query.filter_by(collaborator_id=collab_id).all()
@@ -996,34 +1018,65 @@ def _calc_ponto_indicadores(
         worked_min = result["minutos"]
         if worked_min == 0:
             continue
+        dias_trabalhados.add(d)
         h_bruto_min += worked_min
         dias_processados += 1
-        # Domingos têm jornada reduzida de 6h20
-        jornada_dia = JORNADA_DOMINGO_MIN if d.weekday() == 6 else JORNADA_MIN
-        normal_today = min(worked_min, jornada_dia)
-        # Dia é folga se: domingo, feriado cadastrado, ou qualquer batida do dia marcada como folga
-        dia_e_folga = (
+        chp_min += JORNADA_MIN
+        normal_today, falta_today, extra_today = _split_jornada_tolerancia(worked_min)
+        h_normais_min += normal_today
+        faltas_min += falta_today
+        extra_acumulado_min += extra_today
+        # 1 domingo ou 1 feriado trabalhado = direito a 1 dia de folga
+        dia_credito_folga = (
             is_folga_ou_domingo(d)
             or any(getattr(p, "gives_folga", False) for p in day_punches)
         )
-        if dia_e_folga and d not in _revogadas:
-            # Folga sempre vale 1 dia completo (JORNADA_MIN), independente
-            # de a jornada do domingo ser mais curta (6h20 vs 7h20).
+        if dia_credito_folga and d not in _revogadas:
             folga_bruto_min += JORNADA_MIN
-        else:
-            h_normais_min += normal_today
-        if worked_min > jornada_dia:
-            extra_acumulado_min += worked_min - jornada_dia
 
-    ajustes = PontoAjuste.query.filter_by(collaborator_id=collab_id).all()
-    desconto_min = sum(a.minutos for a in ajustes if a.tipo == "desconto_extra")
-    folgas_usadas_count = sum(1 for a in ajustes if a.tipo == "uso_folga")
+    # Ajustes do período (ou todos, se saldo acumulado)
+    aq = PontoAjuste.query.filter_by(collaborator_id=collab_id)
+    if month_start and month_end:
+        aq = aq.filter(
+            PontoAjuste.data_referencia >= month_start,
+            PontoAjuste.data_referencia < month_end,
+        )
+    ajustes_periodo = aq.all()
+
+    desconto_min = sum(a.minutos for a in ajustes_periodo if a.tipo == "desconto_extra")
+    # Para saldo de folga acumulado, conta TODOS os usos (não só do mês)
+    if month_start is None:
+        folgas_usadas_count = sum(
+            1 for a in PontoAjuste.query.filter_by(
+                collaborator_id=collab_id, tipo="uso_folga"
+            ).all()
+        )
+    else:
+        folgas_usadas_count = sum(1 for a in ajustes_periodo if a.tipo == "uso_folga")
+
+    for a in ajustes_periodo:
+        if a.tipo != "uso_folga" or not a.data_referencia:
+            continue
+        if a.data_referencia in dias_trabalhados:
+            continue
+        if _is_habilit_note(a.obs):
+            # Habilit: usa folga do banco, mas conta como falta no cartão
+            chp_min += JORNADA_MIN
+            faltas_min += JORNADA_MIN
+        # Folga pura: não entra no CHP nem em Faltas
+
+    # Descontos de extra no mês (ou todos no acumulado)
+    if month_start is None:
+        desconto_min = sum(
+            a.minutos
+            for a in PontoAjuste.query.filter_by(
+                collaborator_id=collab_id, tipo="desconto_extra"
+            ).all()
+        )
 
     extra_saldo_min = max(0, extra_acumulado_min - desconto_min)
+    ex_fa_min = extra_acumulado_min - faltas_min
 
-    # Créditos manuais de folga via HourEntry (admin: grant_folga)
-    # Exclui entradas geradas pelo ponto (nota começa com "Ponto:") pois
-    # essas já são contabilizadas via dia_e_folga no loop de batidas acima.
     q_creditos = HourEntry.query.filter(
         HourEntry.collaborator_id == collab_id,
         HourEntry.gives_folga == True,
@@ -1036,7 +1089,13 @@ def _calc_ponto_indicadores(
         )
     folga_bruto_min += q_creditos.count() * JORNADA_MIN
 
-    folga_bruto_saldo_min = max(0, folga_bruto_min - folgas_usadas_count * JORNADA_MIN)
+    # Saldo de folga: no modo mês usa só usos do mês; no acumulado usa todos
+    if month_start is None:
+        usos_para_saldo = folgas_usadas_count
+    else:
+        # No painel mensal, folga_bruto_saldo reflete só o mês; Dir. Folga usa collab.folga_days
+        usos_para_saldo = sum(1 for a in ajustes_periodo if a.tipo == "uso_folga")
+    folga_bruto_saldo_min = max(0, folga_bruto_min - usos_para_saldo * JORNADA_MIN)
 
     collab = db.session.get(Collaborator, collab_id)
     global_rate = Decimal(get_setting("daily_rate", "0"))
@@ -1049,7 +1108,11 @@ def _calc_ponto_indicadores(
     r_extra_valor = rate_por_min * Decimal(extra_saldo_min)
 
     return {
+        "chp_min": chp_min,
         "h_normais_min": h_normais_min,
+        "faltas_min": faltas_min,
+        "ex50_min": extra_acumulado_min,
+        "ex_fa_min": ex_fa_min,
         "folga_bruto_min": folga_bruto_min,
         "folga_bruto_saldo_min": folga_bruto_saldo_min,
         "folga_bruto_dias": folga_bruto_saldo_min / JORNADA_MIN,
@@ -1617,11 +1680,63 @@ def delete_entry(entry_id: int):
     hours_val = entry.hours
     from_history = request.form.get("_from_history")
     collab_id_hist = entry.collaborator_id
+    entry_date = entry.entry_date
+    note = entry.note or ""
+    is_ponto = note.startswith("Ponto:")
+
     if entry.gives_folga:
         collab = db.session.get(Collaborator, entry.collaborator_id)
         if collab:
             collab.folga_days = max(0, collab.folga_days - 1)
+
+    # Lançamento gerado por ponto: remove batidas do intervalo e reprocessa o dia
+    if is_ponto:
+        try:
+            body = note[6:].split("(")[0].strip()
+            left, right = [p.strip() for p in body.replace("→", "\u2192").split("\u2192")]
+            t_start = datetime.strptime(left, "%H:%M").time()
+            t_end = datetime.strptime(right, "%H:%M").time()
+            day_punches = (
+                PunchRecord.query
+                .filter_by(collaborator_id=collab_id_hist, punch_date=entry_date)
+                .order_by(PunchRecord.punch_time.asc(), PunchRecord.id.asc())
+                .all()
+            )
+            to_delete: list = []
+            if t_start == t_end:
+                # Intervalo 0h: remove até 2 batidas nesse horário
+                for p in day_punches:
+                    if p.punch_time == t_start and len(to_delete) < 2:
+                        to_delete.append(p)
+            else:
+                found_start = found_end = False
+                for p in day_punches:
+                    if not found_start and p.punch_time == t_start:
+                        to_delete.append(p)
+                        found_start = True
+                    elif not found_end and p.punch_time == t_end:
+                        to_delete.append(p)
+                        found_end = True
+            for p in to_delete:
+                db.session.delete(p)
+        except Exception:
+            pass
+
     db.session.delete(entry)
+    db.session.flush()
+
+    if is_ponto:
+        leftovers = (
+            HourEntry.query
+            .filter_by(collaborator_id=collab_id_hist, entry_date=entry_date)
+            .filter(HourEntry.note.like("Ponto:%"))
+            .all()
+        )
+        for e in leftovers:
+            db.session.delete(e)
+        db.session.flush()
+        _try_register_interval(collab_id_hist, entry_date)
+
     db.session.commit()
     wz.entry_removido(collab_name, date_str, hours_val)
     flash("Lancamento removido.", "info")
@@ -1651,7 +1766,14 @@ def use_folga(collaborator_id: int):
     except ValueError:
         folga_date = date.today()
 
-    note = (request.form.get("note") or "Folga utilizada").strip()
+    folga_tipo = (request.form.get("folga_tipo") or "folga").strip().lower()
+    note_raw = (request.form.get("note") or "").strip()
+    if folga_tipo == "habilit":
+        note = note_raw if note_raw and "habilit" in note_raw.lower() else (
+            f"Habilit{(': ' + note_raw) if note_raw else ''}"
+        )
+    else:
+        note = note_raw or "Folga utilizada"
 
     db.session.add(HourEntry(
         collaborator_id=collaborator_id,
@@ -1917,22 +2039,10 @@ def collaborator_history(collaborator_id: int):
     ind_mes   = _calc_ponto_indicadores(collaborator_id, ponto_year, ponto_month)
     ind_total = _calc_ponto_indicadores(collaborator_id)
 
-    # Meta e faltantes do mês selecionado
-    meta_mes_min = _get_meta_mensal(ponto_year, ponto_month)
-    _ms_f = date(ponto_year, ponto_month, 1)
-    _me_f = date(ponto_year + 1, 1, 1) if ponto_month == 12 else date(ponto_year, ponto_month + 1, 1)
-    _folgas_mes = PontoAjuste.query.filter(
-        PontoAjuste.collaborator_id == collaborator_id,
-        PontoAjuste.tipo == "uso_folga",
-        PontoAjuste.data_referencia >= _ms_f,
-        PontoAjuste.data_referencia < _me_f,
-    ).all()
-    _folgas_mes_uteis_min = sum(
-        JORNADA_MIN for a in _folgas_mes
-        if a.data_referencia and not is_folga_ou_domingo(a.data_referencia)
-    )
-    _h_cumprido_mes = ind_mes["h_normais_min"] + ind_mes["folga_bruto_min"]
-    faltantes_mes_min = max(0, meta_mes_min - _h_cumprido_mes - _folgas_mes_uteis_min)
+    # Meta / CHP e faltas no formato Cartão Ponto
+    meta_mes_min = ind_mes.get("chp_min") or _get_meta_mensal(ponto_year, ponto_month)
+    faltantes_mes_min = ind_mes.get("faltas_min", 0)
+
     # Meta personalizada do mês (para exibir no form do admin)
     monthly_meta_atual = MonthlyMeta.query.filter_by(year=ponto_year, month=ponto_month).first()
 
@@ -2163,6 +2273,7 @@ def collaborator_pdf(collaborator_id: int):
     total_value = Decimal(days) * daily_rate if daily_rate > 0 else Decimal("0")
 
     month_name = _MESES_PT[month]
+    ind = _calc_ponto_indicadores(collaborator_id, year, month)
 
     html = render_template(
         "pdf_collab.html",
@@ -2177,6 +2288,9 @@ def collaborator_pdf(collaborator_id: int):
         days=days,
         daily_rate=daily_rate,
         total_value=total_value,
+        ind=ind,
+        fmt_min=_fmt_min_hhmm,
+        now=date.today(),
     )
     try:
         from weasyprint import HTML  # type: ignore[import-untyped]
@@ -2800,6 +2914,11 @@ def _try_register_interval(
         seconds = (t_exit - t_entry).total_seconds()
         hours   = Decimal(str(round(seconds / 3600, 2)))
 
+        # Não gera lançamento de intervalo zerado (batidas no mesmo horário)
+        if hours <= 0:
+            i += 2
+            continue
+
         note = (
             f"Ponto: {t_entry.strftime('%H:%M')} \u2192 "
             f"{t_exit.strftime('%H:%M')} (comprovante)"
@@ -2822,6 +2941,10 @@ def _try_register_interval(
 
     if not intervals:
         return None
+
+    # Marca todas as batidas do dia como processadas (inclui pares 0h ignorados)
+    for p in all_punches:
+        p.processed = True
 
     if gives_folga and not had_folga_before:
         collab = db.session.get(Collaborator, collab_id)
@@ -2901,6 +3024,20 @@ def ponto_confirmar():
             collab_id = c.id
     if not collab_id:
         flash("Nenhum colaborador vinculado. Associe ou cadastre o colaborador antes de registrar.", "danger")
+        return redirect(url_for("ponto"))
+
+    # Rejeita batida duplicada no mesmo horário do mesmo dia
+    dup_time = PunchRecord.query.filter_by(
+        collaborator_id=collab_id,
+        punch_date=punch_date,
+        punch_time=punch_time,
+    ).first()
+    if dup_time:
+        flash(
+            f"Já existe batida em {punch_date.strftime('%d/%m/%Y')} "
+            f"às {punch_time.strftime('%H:%M')} para este colaborador.",
+            "warning",
+        )
         return redirect(url_for("ponto"))
 
     # Hashear CPF antes de gravar (ou vazio se não informado)
@@ -3140,6 +3277,19 @@ def admin_ponto_dia_add(collab_id: int):
         flash("Hora inválida.", "danger")
         return redirect(url_for("collaborator_history", collaborator_id=collab_id, month=month_param))
 
+    dup_time = PunchRecord.query.filter_by(
+        collaborator_id=collab_id,
+        punch_date=target_date,
+        punch_time=target_time,
+    ).first()
+    if dup_time:
+        flash(
+            f"Já existe batida em {target_date.strftime('%d/%m/%Y')} "
+            f"às {target_time.strftime('%H:%M')}.",
+            "warning",
+        )
+        return redirect(url_for("collaborator_history", collaborator_id=collab_id, month=month_param))
+
     # NSR único gerado para registros manuais
     nsr_manual = f"MANUAL-{uuid.uuid4().hex[:16].upper()}"
 
@@ -3152,9 +3302,11 @@ def admin_ponto_dia_add(collab_id: int):
         nsr=nsr_manual,
         punch_type=punch_type,
         origin="admin",
-        gives_folga=False,
+        gives_folga=(target_date.weekday() == 6 or is_feriado(target_date)),
     )
     db.session.add(record)
+    db.session.flush()
+    _try_register_interval(collab_id, target_date)
     db.session.commit()
 
     flash(
@@ -3175,7 +3327,21 @@ def admin_ponto_excluir(collab_id: int, record_id: int):
         return redirect(url_for("collaborator_history", collaborator_id=collab_id))
 
     month_param = (request.form.get("month") or "").strip()
+    punch_date = record.punch_date
     db.session.delete(record)
+    db.session.flush()
+
+    # Remove HourEntries Ponto do dia e reconstrói a partir das batidas restantes
+    for e in (
+        HourEntry.query
+        .filter_by(collaborator_id=collab_id, entry_date=punch_date)
+        .filter(HourEntry.note.like("Ponto:%"))
+        .all()
+    ):
+        db.session.delete(e)
+    db.session.flush()
+    _try_register_interval(collab_id, punch_date)
+
     db.session.commit()
     flash("Batida removida.", "info")
     return redirect(url_for("collaborator_history", collaborator_id=collab_id, month=month_param))
@@ -3407,7 +3573,14 @@ def colaborador_usar_folga_ponto(collab_id: int):
         return redirect(url_for("ponto_camera"))
 
     date_raw = (request.form.get("data_referencia") or "").strip()
-    obs = (request.form.get("obs") or "Folga utilizada").strip()
+    folga_tipo = (request.form.get("folga_tipo") or "folga").strip().lower()
+    obs_raw = (request.form.get("obs") or "").strip()
+    if folga_tipo == "habilit":
+        obs = obs_raw if obs_raw and "habilit" in obs_raw.lower() else (
+            f"Habilit{(': ' + obs_raw) if obs_raw else ''}"
+        )
+    else:
+        obs = obs_raw or "Folga utilizada"
     month_param = request.form.get("month", "")
 
     try:
@@ -3698,33 +3871,21 @@ def api_ponto_indicadores(collab_id: int):
 
     year, month = _parse_month_param(request.args.get("month"))
     ind = _calc_ponto_indicadores(collab_id, year, month)
-    meta_min = _get_meta_mensal(year, month)
-    h_cumprido = ind["h_normais_min"] + ind["folga_bruto_min"]
-
-    _api_ms = date(year, month, 1)
-    _api_me = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
-    _api_folgas = PontoAjuste.query.filter(
-        PontoAjuste.collaborator_id == collab_id,
-        PontoAjuste.tipo == "uso_folga",
-        PontoAjuste.data_referencia >= _api_ms,
-        PontoAjuste.data_referencia < _api_me,
-    ).all()
-    _api_folgas_uteis_min = sum(
-        JORNADA_MIN for a in _api_folgas
-        if a.data_referencia and not is_folga_ou_domingo(a.data_referencia)
-    )
-
     return jsonify(
         {
+            "chp": _fmt_min_hhmm(ind.get("chp_min", 0)),
             "h_bruto": _fmt_min_hhmm(ind["h_bruto_min"]),
             "h_normais": _fmt_min_hhmm(ind["h_normais_min"]),
+            "faltas": _fmt_min_hhmm(ind.get("faltas_min", 0)),
+            "ex50": _fmt_min_hhmm(ind.get("ex50_min", ind["extra_acumulado_min"])),
+            "ex_fa": _fmt_min_hhmm(ind.get("ex_fa_min", 0)),
             "folga_bruto_horas": _fmt_min_hhmm(ind["folga_bruto_saldo_min"]),
             "folga_bruto_dias": round(ind["folga_bruto_dias"], 2),
             "extra_saldo_horas": _fmt_min_hhmm(ind["extra_saldo_min"]),
             "r_extra_valor": float(ind["r_extra_valor"]),
             "dias_incompletos": ind["dias_incompletos"],
-            "meta_mensal": _fmt_min_hhmm(meta_min),
-            "faltantes": _fmt_min_hhmm(max(0, meta_min - h_cumprido - _api_folgas_uteis_min)),
+            "meta_mensal": _fmt_min_hhmm(ind.get("chp_min", 0)),
+            "faltantes": _fmt_min_hhmm(ind.get("faltas_min", 0)),
         }
     )
 
